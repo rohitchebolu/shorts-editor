@@ -4,6 +4,9 @@
 # Output: JSON with pass/fail per file, issues[], and summary
 set -euo pipefail
 
+# Make portable ffmpeg/ffprobe discoverable on native-Windows installs.
+[ -d "$HOME/.shorts-tools/bin" ] && export PATH="$HOME/.shorts-tools/bin:$PATH"
+
 OUTPUT_DIR=""
 
 while [[ $# -gt 0 ]]; do
@@ -45,14 +48,14 @@ for file in "$OUTPUT_DIR"/short_*.mp4; do
     fi
 
     # 2. Check video stream exists and resolution is 1080x1920
-    width=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width -of csv=p=0 "$file" 2>/dev/null || echo "0")
-    height=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height -of csv=p=0 "$file" 2>/dev/null || echo "0")
+    width=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width -of csv=p=0 "$file" 2>/dev/null | tr -d '\r,' || echo "0")
+    height=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=height -of csv=p=0 "$file" 2>/dev/null | tr -d '\r,' || echo "0")
     if [ "$width" != "1080" ] || [ "$height" != "1920" ]; then
         ISSUES+=("Resolution is ${width}x${height}, expected 1080x1920")
     fi
 
     # 3. Check audio track exists
-    audio_codec=$(ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$file" 2>/dev/null || echo "")
+    audio_codec=$(ffprobe -v quiet -select_streams a:0 -show_entries stream=codec_name -of csv=p=0 "$file" 2>/dev/null | tr -d '\r,' || echo "")
     if [ -z "$audio_codec" ]; then
         ISSUES+=("No audio track found")
     fi
@@ -60,7 +63,7 @@ for file in "$OUTPUT_DIR"/short_*.mp4; do
     # 4. Check audio isn't silent (mean volume above -60 dB)
     if [ -n "$audio_codec" ]; then
         mean_vol=$(ffmpeg -i "$file" -af "volumedetect" -f null /dev/null 2>&1 \
-            | grep "mean_volume:" | sed 's/.*mean_volume: //' | sed 's/ dB//' || echo "")
+            | grep "mean_volume:" | sed 's/.*mean_volume: //' | sed 's/ dB//' | tr -d '\r,' || echo "")
         if [ -n "$mean_vol" ]; then
             # Compare as integer (bash can't do float comparison natively)
             mean_int=$(printf "%.0f" "$mean_vol" 2>/dev/null || echo "-99")
@@ -71,7 +74,7 @@ for file in "$OUTPUT_DIR"/short_*.mp4; do
     fi
 
     # 5. Check duration is within shorts range (3-90 seconds)
-    duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$file" 2>/dev/null || echo "0")
+    duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$file" 2>/dev/null | tr -d '\r,' || echo "0")
     dur_int=$(printf "%.0f" "$duration" 2>/dev/null || echo "0")
     if [ "$dur_int" -lt 3 ] || [ "$dur_int" -gt 90 ]; then
         ISSUES+=("Duration ${dur_int}s is outside 3-90s range")
@@ -79,7 +82,7 @@ for file in "$OUTPUT_DIR"/short_*.mp4; do
 
     # 6. Check file size against platform limit
     file_size=$(stat -c%s "$file" 2>/dev/null || stat -f%z "$file" 2>/dev/null || echo "0")
-    size_mb=$(echo "scale=1; $file_size / 1048576" | bc)
+    size_mb=$(awk -v n="$file_size" 'BEGIN{printf "%.1f", n/1048576}')
 
     platform="unknown"
     limit=0
@@ -95,7 +98,7 @@ for file in "$OUTPUT_DIR"/short_*.mp4; do
     fi
 
     # 7. Check video codec is H.264
-    video_codec=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$file" 2>/dev/null || echo "")
+    video_codec=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=codec_name -of csv=p=0 "$file" 2>/dev/null | tr -d '\r,' || echo "")
     if [ "$video_codec" != "h264" ]; then
         ISSUES+=("Video codec is ${video_codec}, expected h264")
     fi

@@ -116,6 +116,67 @@ def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="a
     return segments, captions, info, device, compute_type
 
 
+# Short model name -> mlx-community HF repo. A value containing "/" is used as-is,
+# so you can pass a specific repo (e.g. --model mlx-community/whisper-large-v3-mlx).
+MLX_MODEL_MAP = {
+    "tiny": "mlx-community/whisper-tiny",
+    "base": "mlx-community/whisper-base",
+    "small": "mlx-community/whisper-small",
+    "medium": "mlx-community/whisper-medium",
+    "large-v3": "mlx-community/whisper-large-v3-mlx",
+    "large-v3-turbo": "mlx-community/whisper-large-v3-turbo",
+}
+
+
+def transcribe_mlx(audio_path, model="large-v3"):
+    """Transcribe on Apple Silicon via MLX (GPU / Neural Engine) — fast large-v3.
+
+    Returns the same (segments, captions, info, device, compute_type) shape as
+    transcribe() so main() stays backend-agnostic.
+    """
+    import mlx_whisper
+    from types import SimpleNamespace
+
+    repo = model if "/" in model else MLX_MODEL_MAP.get(model, f"mlx-community/whisper-{model}")
+
+    result = mlx_whisper.transcribe(
+        audio_path,
+        path_or_hf_repo=repo,
+        word_timestamps=True,
+    )
+
+    segments = []
+    captions = []
+    for seg in result.get("segments", []):
+        seg_data = {
+            "start": round(float(seg.get("start", 0.0)), 3),
+            "end": round(float(seg.get("end", 0.0)), 3),
+            "text": (seg.get("text") or "").strip(),
+            "words": [],
+        }
+        for w in (seg.get("words") or []):
+            word_text = w.get("word", "")
+            w_start = float(w.get("start", seg_data["start"]))
+            w_end = float(w.get("end", w_start))
+            seg_data["words"].append({
+                "word": word_text.strip(),
+                "start": round(w_start, 3),
+                "end": round(w_end, 3),
+            })
+            captions.append({
+                "text": word_text,
+                "startMs": int(w_start * 1000),
+                "endMs": int(w_end * 1000),
+            })
+        segments.append(seg_data)
+
+    info = SimpleNamespace(
+        language=result.get("language", "unknown"),
+        language_probability=1.0,
+    )
+    return segments, captions, info, "mlx", "float16"
+
+
 def main():
     parser = argparse.ArgumentParser(description="Transcribe video with faster-whisper")
     parser.add_argument("input", help="Input video or audio file")
@@ -127,6 +188,11 @@ def main():
     parser.add_argument("--compute-type", default="auto",
                         choices=["auto", "float16", "int8", "float32"],
                         help="Compute type (default: auto)")
+    parser.add_argument("--backend", default="faster-whisper",
+                        choices=["faster-whisper", "mlx"],
+                        help="Transcription backend. 'mlx' uses the Apple Silicon "
+                             "GPU/Neural Engine (fast large-v3; needs mlx-whisper). "
+                             "Default: faster-whisper.")
 
     args = parser.parse_args()
 
@@ -154,9 +220,14 @@ def main():
         extract_audio(args.input, audio_path)
 
     try:
-        segments, captions, info, actual_device, actual_compute = transcribe(
-            audio_path, args.model, args.device, args.compute_type
-        )
+        if args.backend == "mlx":
+            segments, captions, info, actual_device, actual_compute = transcribe_mlx(
+                audio_path, args.model
+            )
+        else:
+            segments, captions, info, actual_device, actual_compute = transcribe(
+                audio_path, args.model, args.device, args.compute_type
+            )
     finally:
         if tmp_audio and os.path.exists(tmp_audio):
             os.unlink(tmp_audio)

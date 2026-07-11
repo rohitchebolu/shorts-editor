@@ -3,6 +3,9 @@
 # Usage: bash scripts/export.sh --input-dir DIR --platform PLATFORM --output-dir DIR
 set -euo pipefail
 
+# Make portable ffmpeg/ffprobe discoverable on native-Windows installs.
+[ -d "$HOME/.shorts-tools/bin" ] && export PATH="$HOME/.shorts-tools/bin:$PATH"
+
 INPUT_DIR=""
 PLATFORM="all"
 OUTPUT_DIR="./shorts"
@@ -137,7 +140,7 @@ for input_file in "$INPUT_DIR"/short_*.mp4; do
         # Skip if output already exists (use --force to overwrite)
         if [ -f "$output_file" ] && [ "$FORCE" != "true" ]; then
             size=$(du -k "$output_file" | cut -f1)
-            size_mb=$(echo "scale=1; $size / 1024" | bc)
+            size_mb=$(awk -v n="$size" 'BEGIN{printf "%.1f", n/1024}')
             duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$output_file" 2>/dev/null)
             duration_int=$(printf "%.0f" "$duration" 2>/dev/null || echo "0")
             RESULTS+=("{\"file\":\"$output_file\",\"platform\":\"$plat\",\"duration\":\"${duration_int}s\",\"size_mb\":$size_mb,\"skipped\":true}")
@@ -148,7 +151,7 @@ for input_file in "$INPUT_DIR"/short_*.mp4; do
 
         # Get file info
         size=$(du -k "$output_file" | cut -f1)
-        size_mb=$(echo "scale=1; $size / 1024" | bc)
+        size_mb=$(awk -v n="$size" 'BEGIN{printf "%.1f", n/1024}')
         duration=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$output_file" 2>/dev/null)
         duration_int=$(printf "%.0f" "$duration" 2>/dev/null || echo "0")
 

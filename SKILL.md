@@ -19,10 +19,11 @@ allowed-tools:
 
 # shorts — Interactive Shortform Video Creator
 
-You are an interactive shortform video producer. You guide the user through a 10-step
-pipeline where YOU (Claude) analyze the transcript, identify the best segments, present
-them for approval, snap boundaries to natural audio cut points, and render premium
-vertical videos with animated captions.
+You are an interactive shortform video producer. You accept a **YouTube (or any
+yt-dlp-supported) URL _or_ a local video file**, then guide the user through the pipeline
+where YOU (Claude) analyze the transcript, identify the best segments, present them for
+approval, snap boundaries to natural audio cut points, and render premium vertical videos
+with animated captions.
 
 ## Pre-Flight
 
@@ -41,13 +42,54 @@ if [ -z "$SHORTS_ROOT" ]; then
 fi
 ```
 
-Set up the temp directory (configurable via `SHORTS_TMP` environment variable):
+Set up the temp directory (configurable via `SHORTS_TMP` environment variable). On native
+Windows, Git Bash's `/tmp` and Windows Python disagree on where `/tmp` is, so default to a
+real Windows path (forward-slash form works for both bash and Windows tools):
 ```bash
-SHORTS_TMP="${SHORTS_TMP:-/tmp/claude-shorts}"
+if [ -z "${SHORTS_TMP:-}" ]; then
+    case "$(uname -s)" in
+        MINGW*|MSYS*|CYGWIN*) SHORTS_TMP="$(cygpath -m "$HOME")/.shorts-tmp/claude-shorts" ;;
+        *) SHORTS_TMP="/tmp/claude-shorts" ;;
+    esac
+fi
 mkdir -p "$SHORTS_TMP/clips"
+
+# Make portable ffmpeg/ffprobe/jq (native-Windows install) discoverable.
+[ -d "$HOME/.shorts-tools/bin" ] && export PATH="$HOME/.shorts-tools/bin:$PATH"
 ```
 
-## 10-Step Interactive Pipeline
+**Running the bundled Python scripts (cross-platform):** invoke every Python script through
+the launcher instead of a bare `python3`, so the venv interpreter resolves on both
+Linux/macOS (`bin/python3`) and Windows (`Scripts/python.exe`):
+```bash
+bash "$SHORTS_ROOT/scripts/run_py.sh" <script.py> [args...]
+```
+The launcher also puts the portable tools on `PATH`, so no manual `source activate` is needed.
+
+## Interactive Pipeline (Steps 0–10)
+
+### Step 0: FETCH — YouTube URL → Local File
+
+The input argument is **either a local video path or a URL** (YouTube or any
+yt-dlp-supported site).
+
+- If it's a local file, skip this step and use the path directly as `INPUT_FILE`.
+- If it's a URL (`http://`, `https://`, `youtu.be/`, `youtube.com/`), download it first:
+
+```bash
+bash "$SHORTS_ROOT/scripts/run_py.sh" "$SHORTS_ROOT/scripts/ytdlp_fetch.py" "<URL>" \
+    --output "$SHORTS_TMP/input.mp4"
+```
+
+This downloads the best ≤1080p video + audio, muxes to `$SHORTS_TMP/input.mp4`, and writes
+source metadata (title, duration, uploader) to `$SHORTS_TMP/source_meta.json`. The script
+prints the local file path on its last line — use that as `INPUT_FILE` for every step below.
+
+Transcription still runs locally on the downloaded audio (Step 2) for word-level timestamps,
+so we do **not** depend on the video having YouTube captions. If the download fails (private,
+age-restricted, or geo-blocked), report the error and stop.
+
+Report to user: video title, duration, and confirmation the download succeeded.
 
 ### Step 1: PREFLIGHT
 
@@ -72,13 +114,15 @@ Report to user: input duration, resolution, GPU status, estimated processing tim
 Transcribe with faster-whisper (GPU-accelerated, word-level timestamps).
 Audio extraction is handled internally by transcribe.py:
 ```bash
-VENV="$HOME/.video-skill"
-[ -d "$VENV" ] || VENV="$HOME/.shorts-skill"
-source "$VENV/bin/activate"
-
-python3 "$SHORTS_ROOT/scripts/transcribe.py" INPUT_FILE \
+bash "$SHORTS_ROOT/scripts/run_py.sh" "$SHORTS_ROOT/scripts/transcribe.py" INPUT_FILE \
     --output $SHORTS_TMP/transcript.json
 ```
+
+**Model & backend:** default is `large-v3` (accurate; slow on CPU — a 10-min video can take
+tens of minutes). Add `--model small` for a faster CPU pass. On **Apple Silicon (M-series) add
+`--backend mlx`** to run large-v3 on the GPU/Neural Engine — strongly recommended for
+**non-English audio (e.g. Telugu)**, which needs `large-v3` for usable accuracy. Example:
+`… transcribe.py INPUT_FILE --output … --model large-v3 --backend mlx`
 
 Output is dual-format JSON:
 - `segments[]` — WhisperX-style with word timestamps (for Claude to read)
@@ -90,7 +134,7 @@ Report to user: transcription time, word count, language detected.
 
 Auto-detect whether the video is talking-head, screen recording, or podcast:
 ```bash
-python3 "$SHORTS_ROOT/scripts/detect_content.py" INPUT_FILE \
+bash "$SHORTS_ROOT/scripts/run_py.sh" "$SHORTS_ROOT/scripts/detect_content.py" INPUT_FILE \
     --output $SHORTS_TMP/content_type.json
 ```
 
@@ -151,9 +195,23 @@ Present candidates in a formatted table:
 | 3 | 08:11 → 08:52 | 41s  | 79    | "I tested this for 6 months..."  | Personal story + surprising result     |
 ```
 
+**Auto-recommend the edit style from the detected content type** (Step 3's
+`content_type.json`) so the user gets a smart default instead of choosing blind:
+
+| Content type | Recommended caption style | Why |
+|--------------|---------------------------|-----|
+| talking-head | **bold**   | ALL-CAPS pop-in with an active-word highlight suits face-to-camera delivery |
+| screen       | **clean**  | Minimal fade keeps focus on the screen content without competing visuals |
+| podcast      | **bounce** | Energetic, colorful style matches conversational/entertainment tone |
+
+Present this recommendation as the **pre-selected default** in the AskUserQuestion below (the
+user can still override). Reframe mode is already auto-selected per content type by
+`compute_reframe.py`, so between the two the skill "picks the edit style" end-to-end while
+keeping the human in the loop.
+
 Then ask the user using AskUserQuestion:
 1. **Which segments?** — "all", specific numbers, or "none, re-analyze"
-2. **Caption style?** — bold (ALL CAPS pop-in), bounce (bouncy colorful), clean (minimal fade)
+2. **Caption style?** — default = the recommended style above; options: bold, bounce, clean
 3. **Platform?** — youtube, tiktok, instagram, or all
 
 ### Step 6: APPROVE — Interactive Adjustment Loop
@@ -191,7 +249,7 @@ Snap segment boundaries to natural audio cut points so clips never cut mid-word
 or mid-sentence:
 
 ```bash
-python3 "$SHORTS_ROOT/scripts/snap_boundaries.py" \
+bash "$SHORTS_ROOT/scripts/run_py.sh" "$SHORTS_ROOT/scripts/snap_boundaries.py" \
     --segments $SHORTS_TMP/approved_segments.json \
     --transcript $SHORTS_TMP/transcript.json \
     --input-video INPUT_FILE \
@@ -223,7 +281,7 @@ ffmpeg -y -ss START -to END -i INPUT_FILE -c copy \
 
 Compute reframe coordinates for each clip:
 ```bash
-python3 "$SHORTS_ROOT/scripts/compute_reframe.py" \
+bash "$SHORTS_ROOT/scripts/run_py.sh" "$SHORTS_ROOT/scripts/compute_reframe.py" \
     --clips-dir $SHORTS_TMP/clips/ \
     --content-type CONTENT_TYPE \
     --output $SHORTS_TMP/reframe.json
@@ -318,7 +376,8 @@ These defaults work well for most content. Offer alternatives when the user has 
 
 | Parameter | Default | Flag/Var | When to change |
 |-----------|---------|----------|----------------|
-| Whisper model | `large-v3` | `--model small` | Low VRAM (< 6 GB) |
+| Whisper model | `large-v3` | `--model small` | Low VRAM (< 6 GB) or faster CPU pass |
+| Transcription backend | `faster-whisper` | `--backend mlx` | Apple Silicon — fast large-v3 on GPU/Neural Engine (needs mlx-whisper) |
 | Screen zoom | `0.55` | `--zoom 0.4` | More context visible in screen recordings |
 | Cursor tracking | enabled | `--no-cursor-track` | Static screen content (slides, documents) |
 | Silence detection | enabled | `--no-silence` | Faster processing, word-boundary-only snapping |

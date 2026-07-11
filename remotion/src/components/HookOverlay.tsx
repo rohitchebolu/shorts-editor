@@ -55,7 +55,7 @@ export const HookOverlay: React.FC<HookOverlayProps> = ({ line1, line2 }) => {
       {line1 && (
         <div
           style={{
-            fontFamily: "'Montserrat', sans-serif",
+            fontFamily: "'Montserrat', 'Noto Sans Telugu', sans-serif",
             fontWeight: 800,
             fontSize: 48,
             color: "white",
@@ -70,7 +70,7 @@ export const HookOverlay: React.FC<HookOverlayProps> = ({ line1, line2 }) => {
       {line2 && (
         <div
           style={{
-            fontFamily: "'Inter', sans-serif",
+            fontFamily: "'Inter', 'Noto Sans Telugu', sans-serif",
             fontWeight: 600,
             fontSize: 28,
             color: "#00BFFF",

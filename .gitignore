@@ -1,6 +1,7 @@
 # Generated outputs
 shorts/
 /tmp/
+.tmp*/
 
 # Remotion cache
 .remotion/
@@ -40,3 +41,8 @@ Thumbs.db
 # Temporary / intermediate files
 *.wav
 *.tmp
+
+# Native-Windows setup artifacts (portable tools + install logs)
+.venv_install.log
+.tools_install.log
+.shorts-tools/

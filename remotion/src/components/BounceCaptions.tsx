@@ -62,7 +62,7 @@ export const BounceCaptions: React.FC<BounceCaptionsProps> = ({
     >
       <span
         style={{
-          fontFamily: "'Bangers', cursive",
+          fontFamily: "'Bangers', 'Noto Sans Telugu', cursive",
           fontSize: 84,
           color,
           textShadow: `

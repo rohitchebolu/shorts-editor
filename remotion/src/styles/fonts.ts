@@ -7,6 +7,11 @@ import { staticFile } from "remotion";
  * - Montserrat Bold (Bold style) — Google Fonts, OFL
  * - Bangers (Bounce style) — Google Fonts, OFL
  * - Inter Bold (Clean style) — Google Fonts, OFL
+ * - Noto Sans Telugu (Telugu fallback for all styles) — Google Fonts, OFL (variable)
+ *
+ * The Telugu font is added as a per-glyph fallback in every caption font stack so
+ * Telugu-English (Tinglish) content renders: Latin glyphs use the primary Latin font,
+ * Telugu glyphs fall back to Noto Sans Telugu.
  *
  * For preview mode, fonts are loaded via @font-face in the browser.
  * For rendering, Remotion handles font loading automatically.
@@ -26,6 +31,11 @@ export const FONTS = {
     family: "Inter",
     src: staticFile("fonts/Inter-Bold.ttf"),
     weight: "700",
+  },
+  notoTelugu: {
+    family: "Noto Sans Telugu",
+    src: staticFile("fonts/NotoSansTelugu-Variable.ttf"),
+    weight: "100 900",
   },
 } as const;
 

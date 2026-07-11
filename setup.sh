@@ -35,6 +35,12 @@ if [ -d "$HOME/.video-skill" ]; then
         echo "[Python] Installing opencv-python..."
         "$VENV/bin/pip" install --quiet opencv-python
     fi
+
+    # Check yt-dlp (Step 0 URL ingestion)
+    if ! "$VENV/bin/python3" -c "import yt_dlp" 2>/dev/null; then
+        echo "[Python] Installing yt-dlp..."
+        "$VENV/bin/pip" install --quiet yt-dlp
+    fi
 else
     VENV="$HOME/.shorts-skill"
     if [ -d "$VENV" ]; then
@@ -58,8 +64,8 @@ else
             --index-url https://download.pytorch.org/whl/cpu
     fi
 
-    echo "[Python] Installing faster-whisper, mediapipe, numpy, opencv-python..."
-    "$VENV/bin/pip" install --quiet faster-whisper mediapipe numpy opencv-python
+    echo "[Python] Installing faster-whisper, mediapipe, numpy, opencv-python, yt-dlp..."
+    "$VENV/bin/pip" install --quiet faster-whisper mediapipe numpy opencv-python yt-dlp
 fi
 
 echo "[Python] Venv ready: $VENV"

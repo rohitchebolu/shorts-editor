@@ -59,7 +59,7 @@ export const CleanCaptions: React.FC<CleanCaptionsProps> = ({ captions }) => {
           <span
             key={`${currentPage.startMs}-${i}`}
             style={{
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: "'Inter', 'Noto Sans Telugu', sans-serif",
               fontWeight: 700,
               fontSize: 56,
               color: isActive

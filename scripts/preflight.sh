@@ -7,6 +7,11 @@ set -euo pipefail
 INPUT="${1:-}"
 OUTPUT_DIR="${2:-./shorts}"
 
+# Make portable ffmpeg/ffprobe/jq discoverable on native-Windows installs.
+if [ -d "$HOME/.shorts-tools/bin" ]; then
+    export PATH="$HOME/.shorts-tools/bin:$PATH"
+fi
+
 if [ -z "$INPUT" ]; then
     echo '{"pass":false,"error":"Usage: preflight.sh <input_file> [output_dir]"}'
     exit 1
@@ -71,8 +76,15 @@ fi
 if [ -z "$VENV" ]; then
     ERRORS+=("Python venv not found — run: bash setup.sh")
 else
+    # Resolve venv python cross-platform (Linux/macOS bin/, Windows Scripts/)
+    VENV_PY=""
+    if [ -x "$VENV/bin/python3" ]; then
+        VENV_PY="$VENV/bin/python3"
+    elif [ -f "$VENV/Scripts/python.exe" ]; then
+        VENV_PY="$VENV/Scripts/python.exe"
+    fi
     # Check faster-whisper is installed
-    if ! "$VENV/bin/python3" -c "import faster_whisper" 2>/dev/null; then
+    if [ -z "$VENV_PY" ] || ! "$VENV_PY" -c "import faster_whisper" 2>/dev/null; then
         ERRORS+=("faster-whisper not installed in $VENV — run: bash setup.sh")
     fi
 fi
@@ -87,8 +99,8 @@ fi
 DURATION=""
 RESOLUTION=""
 if [ -f "$INPUT" ] && command -v ffprobe &>/dev/null; then
-    DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null || echo "")
-    RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$INPUT" 2>/dev/null || echo "")
+    DURATION=$(ffprobe -v quiet -show_entries format=duration -of csv=p=0 "$INPUT" 2>/dev/null | tr -d '\r,' || echo "")
+    RESOLUTION=$(ffprobe -v quiet -select_streams v:0 -show_entries stream=width,height -of csv=p=0 "$INPUT" 2>/dev/null | tr -d '\r' || echo "")
 fi
 
 # Build JSON output

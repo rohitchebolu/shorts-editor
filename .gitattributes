@@ -1,0 +1,21 @@
+# Normalize line endings so shell scripts committed from Windows still run on
+# macOS/Linux. Without this, CRLF in a .sh file breaks with "bad interpreter: ...^M".
+* text=auto eol=lf
+
+# Scripts and code MUST be LF (they run on Unix)
+*.sh   text eol=lf
+*.py   text eol=lf
+*.mjs  text eol=lf
+*.ts   text eol=lf
+*.tsx  text eol=lf
+*.json text eol=lf
+*.md   text eol=lf
+
+# PowerShell is fine with LF too
+*.ps1  text eol=lf
+
+# Binary assets — never touch
+*.ttf  binary
+*.jpeg binary
+*.jpg  binary
+*.png  binary

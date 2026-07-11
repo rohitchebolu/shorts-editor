@@ -6,8 +6,9 @@ Interactive longform-to-shortform video creator powered by [Claude Code](https:/
 
 ## How It Works
 
-Claude Code guides you through a 10-step interactive pipeline:
+Claude Code accepts a **YouTube (or any yt-dlp-supported) URL _or_ a local video file**, then guides you through the pipeline:
 
+0. **Fetch** *(URLs only)* - Downloads the source video with yt-dlp (best ≤1080p) to a local file
 1. **Preflight** - Validates input video, checks disk space, detects GPU
 2. **Transcribe** - GPU-accelerated transcription with word-level timestamps (faster-whisper)
 3. **Detect Content** - Auto-classifies: talking-head, screen recording, or podcast
@@ -37,8 +38,9 @@ Claude Code guides you through a 10-step interactive pipeline:
 - **FFmpeg** (system package)
 - **Python 3.10+**
 - **Node.js 18+**
+- **yt-dlp** (for URL input) + a **JS runtime (deno)** for reliable YouTube extraction
 - **Claude Code** (CLI)
-- **NVIDIA GPU** recommended (for CUDA transcription + NVENC encoding)
+- **NVIDIA GPU** optional (CUDA transcription + NVENC encoding; CPU works fine without it)
 
 ## Installation
 
@@ -54,24 +56,46 @@ bash setup.sh
 bash install.sh
 ```
 
-### Windows
+### macOS (Apple Silicon / M-series)
 
-claude-shorts requires Unix tools (FFmpeg, bash). On Windows, use [WSL 2](https://learn.microsoft.com/en-us/windows/wsl/install):
+Runs natively — one command. See **[SETUP-MAC.md](SETUP-MAC.md)** for the full guide:
 
 ```bash
-# Inside WSL
-git clone https://github.com/AgriciDaniel/claude-shorts.git
-cd claude-shorts
-bash setup.sh
-bash install.sh
+git clone <YOUR_REPO_URL> claude-shorts && cd claude-shorts
+bash setup-mac.sh
 ```
+
+Add `--backend mlx` for fast `large-v3` transcription on the GPU/Neural Engine (recommended for
+non-English audio like **Telugu**). Rendering uses the GPU, so shorts render in well under a minute.
+
+### Windows (native)
+
+This fork runs on **native Windows** — no WSL required. One command sets everything up:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File setup.ps1
+```
+
+`setup.ps1` creates the Python venv (CPU-only — faster-whisper uses CTranslate2, so **no
+PyTorch**), installs the deps, fetches portable **ffmpeg / ffprobe / jq / deno** into
+`%USERPROFILE%\.shorts-tools\bin` (added to your user PATH), downloads the MediaPipe
+face-detection model, and runs `npm install` for Remotion.
+
+How it works under the hood: the `scripts/run_py.sh` launcher resolves the venv interpreter on
+both the Unix (`bin/`) and Windows (`Scripts/`) layouts, and the bash scripts prepend the
+portable-tools dir to `PATH` — so the pipeline steps are identical across OSes. (**deno** is a
+JS runtime that yt-dlp now needs for reliable YouTube extraction.)
+
+WSL 2 also works if you prefer a Linux environment (`bash setup.sh && bash install.sh`).
 
 ### What `setup.sh` does
 
 - Creates a Python virtual environment at `~/.shorts-skill/` (or reuses `~/.video-skill/` if it exists)
-- Installs `faster-whisper`, `mediapipe`, `numpy`, `opencv-python`, and PyTorch (CUDA or CPU variant)
+- Installs `faster-whisper`, `mediapipe`, `numpy`, `opencv-python`, `yt-dlp` (PyTorch only if an NVIDIA GPU is present — faster-whisper uses CTranslate2, so CPU needs no PyTorch)
 - Runs `npm install` in the `remotion/` directory
 - Checks for system dependencies (FFmpeg, jq)
+
+> On **native Windows**, use `setup.ps1` instead (see [Windows](#windows-native) below) — it also fetches portable ffmpeg/jq/deno and the MediaPipe face model.
 
 ## Usage
 
@@ -107,18 +131,38 @@ Claude: [Snaps boundaries, extracts clips, renders, exports]
 Output: shorts/short_01_yt.mp4, shorts/short_03_yt.mp4
 ```
 
+### From a YouTube URL
+
+```
+You: /shorts https://www.youtube.com/watch?v=VIDEO_ID
+Claude: [Downloads with yt-dlp (Step 0), then runs the identical pipeline]
+```
+
+Claude downloads the video locally first, then transcribes it with faster-whisper for
+word-level timestamps — so YouTube captions are **not** required and the caption animation
+stays precise.
+
+> **⚠️ Terms of Service:** Downloading third-party videos may be restricted by YouTube's
+> Terms of Service and by the source's copyright. You are responsible for having the rights
+> to download, edit, and re-publish anything you process. Use only with content you own or
+> are licensed to use.
+
 ## Project Structure
 
 ```
 claude-shorts/
-├── SKILL.md                           # 10-step interactive pipeline (Claude Code skill)
+├── SKILL.md                           # Interactive pipeline, Steps 0–10 (Claude Code skill)
 ├── CLAUDE.md                          # Project-level instructions
 ├── install.sh                         # Install to ~/.claude/skills/
-├── setup.sh                           # Python + Node dependency installer
+├── setup.sh                           # Python + Node dependency installer (Linux/macOS)
+├── setup.ps1                          # Native-Windows dependency installer
 │
 ├── scripts/
-│   ├── transcribe.py                  # faster-whisper GPU transcription
+│   ├── ytdlp_fetch.py                 # Step 0: YouTube/URL → local MP4 (yt-dlp)
+│   ├── run_py.sh                      # Cross-platform venv Python launcher (bin/ ↔ Scripts/)
+│   ├── transcribe.py                  # faster-whisper transcription (word-level timestamps)
 │   ├── detect_content.py              # MediaPipe content type classifier
+│   ├── face_detect.py                 # Shared MediaPipe Tasks face-detector wrapper
 │   ├── compute_reframe.py             # Face tracking + cursor tracking + crop
 │   ├── snap_boundaries.py             # Audio-aware boundary snapping
 │   ├── preflight.sh                   # Input validation + disk space check
@@ -198,6 +242,7 @@ Caption fonts are bundled from Google Fonts under the [SIL Open Font License](re
 - Montserrat Bold (Bold style)
 - Bangers Regular (Bounce style)
 - Inter Bold (Clean style)
+- Noto Sans Telugu (Telugu / Telugu-English fallback in all styles — renders mixed-script captions)
 
 ### System
 - [FFmpeg](https://ffmpeg.org/) - Audio extraction, segment cutting, export encoding

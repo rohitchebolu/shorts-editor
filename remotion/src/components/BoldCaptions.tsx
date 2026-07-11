@@ -66,7 +66,7 @@ export const BoldCaptions: React.FC<BoldCaptionsProps> = ({
           <span
             key={`${currentPage.startMs}-${i}`}
             style={{
-              fontFamily: "'Montserrat', sans-serif",
+              fontFamily: "'Montserrat', 'Noto Sans Telugu', sans-serif",
               fontWeight: 800,
               fontSize: 72,
               textTransform: "uppercase",
