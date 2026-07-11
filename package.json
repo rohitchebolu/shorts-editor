@@ -1,0 +1,20 @@
+{
+  "name": "shorts-editor-monorepo",
+  "private": true,
+  "version": "0.1.0",
+  "description": "URL -> auto-clipped vertical short. Monorepo: React UI + Node orchestrator over the Python/Remotion pipeline, with pluggable LLM providers (Gemini / Groq).",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev -w apps/server",
+    "dev:web": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "start": "npm run start -w apps/server",
+    "install:all": "npm install && (cd remotion && npm install)"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

@@ -1,0 +1,72 @@
+// The "brain" — replaces Claude's in-session scoring with a pluggable provider.
+// Uses the Vercel AI SDK so Gemini (Google) and Groq share one interface and both
+// return validated, structured JSON (no fragile prompt-parsing).
+import { generateObject } from "ai";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGroq } from "@ai-sdk/groq";
+import { z } from "zod";
+
+const CandidatesSchema = z.object({
+  candidates: z
+    .array(
+      z.object({
+        start: z.number().describe("clip start time in seconds"),
+        end: z.number().describe("clip end time in seconds"),
+        hook_line1: z.string().describe("punchy on-screen hook shown in the first ~3s"),
+        hook_line2: z.string().default("").describe("optional second hook line"),
+        score: z.number().describe("overall retention score 0-100"),
+        rationale: z.string().describe("one sentence: why this clip works"),
+      })
+    )
+    .min(1),
+});
+
+/** Build an AI SDK model handle for the configured provider + user's API key. */
+function resolveModel({ provider, model, apiKey }) {
+  if (!provider) throw new Error("No LLM provider configured.");
+  if (!apiKey) throw new Error("No API key configured for the provider.");
+  if (!model) throw new Error("No model name configured.");
+  if (provider === "google") return createGoogleGenerativeAI({ apiKey })(model);
+  if (provider === "groq") return createGroq({ apiKey })(model);
+  throw new Error(`Unknown provider: ${provider}`);
+}
+
+/**
+ * Score a transcript into ranked candidate clips.
+ * @param transcript parsed transcript.json ({ segments:[{start,end,text}], ... })
+ * @param rubric     text of references/scoring-rubric.md
+ * @param config     { provider, model, apiKey }
+ */
+export async function scoreSegments({ transcript, rubric, config }) {
+  const model = resolveModel(config);
+
+  const lines = (transcript.segments || [])
+    .map((s) => `[${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}] ${s.text}`)
+    .join("\n");
+
+  const system =
+    "You are an expert short-form video editor. From a timestamped transcript, pick the " +
+    "8-12 best standalone clips (15-55s each) to become vertical Shorts. Judge each on hook " +
+    "strength, standalone coherence, emotional intensity, value density, and payoff. Prefer " +
+    "clips that make sense with zero outside context and end on a satisfying payoff.";
+
+  const prompt =
+    `Scoring rubric:\n${rubric}\n\n` +
+    `Transcript (timestamps in seconds):\n${lines}\n\n` +
+    `Return 8-12 candidate clips. For each: start/end in seconds (must fall within the ` +
+    `transcript), a specific and concrete hook_line1, a score 0-100, and a one-sentence rationale.`;
+
+  const { object } = await generateObject({ model, schema: CandidatesSchema, system, prompt });
+  return [...object.candidates].sort((a, b) => b.score - a.score);
+}
+
+/** Cheap round-trip to validate the provider + model + key. */
+export async function testConnection(config) {
+  const model = resolveModel(config);
+  const { object } = await generateObject({
+    model,
+    schema: z.object({ ok: z.boolean() }),
+    prompt: 'Reply with exactly {"ok": true}.',
+  });
+  return object.ok === true;
+}

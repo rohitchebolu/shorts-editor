@@ -20,6 +20,31 @@ Claude Code accepts a **YouTube (or any yt-dlp-supported) URL _or_ a local video
 9. **Render** - Remotion renders 1080x1920 vertical video with animated captions
 10. **Export** - Platform-optimized encoding (YouTube Shorts, TikTok, Instagram Reels)
 
+## Web App (Gemini / Groq — no Claude Code required)
+
+A minimal monorepo (`apps/web` = React UI, `apps/server` = Node orchestrator) turns the pipeline
+into a **local web app**, so you can run it **without Claude Code**. The one LLM step (segment
+scoring) uses **Gemini or Groq** — chosen from the UI — in place of Claude.
+
+```bash
+npm install     # installs the app workspaces (setup-mac.sh also does this)
+npm run dev      # starts the API (:8787) and the UI (:5173) together
+```
+
+Open **http://localhost:5173**:
+
+1. **Settings** → pick **Gemini** or **Groq**, enter the **model name** + your **API key**, then Save / Test.
+2. Paste a **YouTube URL**, choose the Whisper model + backend (use **mlx** on Apple Silicon), click **Start**.
+3. Watch the live **stage stepper** — fetch → transcribe → detect → score → snap → reframe → render → export.
+4. When scoring completes, **tick the clips** to keep, pick a caption style, click **Render**.
+5. **Preview and download** the finished vertical shorts right in the browser.
+
+Your API key is stored locally on the server (`.data/config.json`, gitignored) and is never sent back to the browser.
+
+Architecture: the Node server shells out to the same Python/Remotion pipeline; only the scoring
+call is swapped from Claude to your chosen provider via the Vercel AI SDK (`@ai-sdk/google`,
+`@ai-sdk/groq`). See [SETUP-MAC.md](SETUP-MAC.md) for the M4 setup.
+
 ## Demo
 
 > Demo video/GIF coming soon — showing the full pipeline from input to rendered short with Bold-style captions.

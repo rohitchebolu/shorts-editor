@@ -66,13 +66,18 @@ if [ ! -f "$MODEL" ]; then
         "https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite"
 fi
 
-# --- 4. Remotion ---
+# --- 4. Node: web app (monorepo) + Remotion ---
+echo "[node] installing web-app (React UI + server) dependencies ..."
+( cd "$SCRIPT_DIR" && npm install --silent )
 echo "[node] installing Remotion dependencies ..."
 ( cd "$SCRIPT_DIR/remotion" && npm install --silent )
 
 echo ""
 echo "=== Setup complete ==="
 echo "Venv:   $VENV"
-echo "Fast transcription on this Mac:  add  --backend mlx  (e.g. --model large-v3 --backend mlx)"
-echo "Run the pipeline scripts via:    bash scripts/run_py.sh <script.py> ..."
-echo "Or invoke  /shorts <url>  in Claude Code."
+echo ""
+echo "Start the web app (no Claude needed):   npm run dev"
+echo "  then open http://localhost:5173, add your Gemini/Groq key in Settings, paste a URL."
+echo ""
+echo "Fast transcription on this Mac:  choose backend 'mlx' (e.g. model large-v3) in the UI."
+echo "CLI alternative:  bash scripts/run_py.sh <script.py> ...   or  /shorts <url> in Claude Code."

@@ -9,6 +9,10 @@ shorts/
 # Dependencies
 node_modules/
 
+# App: local job workspaces + provider config (contains API key)
+.data/
+apps/*/dist/
+
 # Python
 __pycache__/
 *.pyc
