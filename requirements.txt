@@ -2,6 +2,6 @@ faster-whisper>=1.0.0
 mediapipe>=0.10.0
 numpy>=1.24.0
 opencv-python>=4.8.0
-yt-dlp>=2024.0.0
+yt-dlp>=2026.7.4
 # Apple Silicon only (fast GPU/Neural Engine transcription): installed by setup-mac.sh
 #   mlx-whisper
