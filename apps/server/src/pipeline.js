@@ -11,7 +11,17 @@ import { spawn } from "child_process";
 import { EventEmitter } from "events";
 import fs from "fs";
 import path from "path";
-import { REPO_ROOT, SCRIPTS_DIR, RUN_PY, REMOTION_RENDER, RUBRIC_FILE, JOBS_DIR } from "./paths.js";
+import {
+  REPO_ROOT,
+  SCRIPTS_DIR,
+  REMOTION_RENDER,
+  RUBRIC_FILE,
+  JOBS_DIR,
+  venvPython,
+  ffmpegCmd,
+  bashCmd,
+  pipelineEnv,
+} from "./paths.js";
 import { getSecret } from "./config.js";
 import { scoreSegments } from "./llm.js";
 
@@ -57,9 +67,9 @@ export function snapshot(j) {
   };
 }
 
-function spawnLines(cmd, args, { cwd = REPO_ROOT, env = {} }, onLine) {
+function spawnLines(cmd, args, { cwd = REPO_ROOT, env } = {}, onLine) {
   return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { cwd, env: { ...process.env, ...env } });
+    const child = spawn(cmd, args, { cwd, env: env || pipelineEnv() });
     let err = "";
     let lastLine = "";
     child.stdout.on("data", (d) => {
@@ -82,10 +92,13 @@ function spawnLines(cmd, args, { cwd = REPO_ROOT, env = {} }, onLine) {
   });
 }
 
-// Run a bundled Python script through the cross-platform launcher.
-function py(job, script, args, env) {
-  return spawnLines("bash", [RUN_PY, path.join(SCRIPTS_DIR, script), ...args], { env }, (line) =>
-    emit(job, { type: "log", stage: job.stage, line })
+// Run a bundled Python script with the venv interpreter (cross-platform; no bash needed).
+function py(job, script, args, extraEnv) {
+  return spawnLines(
+    venvPython(),
+    [path.join(SCRIPTS_DIR, script), ...args],
+    { env: pipelineEnv(extraEnv) },
+    (line) => emit(job, { type: "log", stage: job.stage, line })
   );
 }
 
@@ -244,9 +257,9 @@ async function runPhase2(job, { segmentIds, style, platform }) {
     for (const seg of snapped.segments) {
       const out = path.join(job.tmp, "clips", `clip_${String(seg.id).padStart(2, "0")}.mp4`);
       await spawnLines(
-        "ffmpeg",
+        ffmpegCmd(),
         ["-y", "-ss", String(seg.start), "-to", String(seg.end), "-i", input, "-c", "copy", out],
-        { env },
+        { env: pipelineEnv(env) },
         () => {}
       );
     }
@@ -272,21 +285,21 @@ async function runPhase2(job, { segmentIds, style, platform }) {
         "--clips-dir", path.join(job.tmp, "clips") + path.sep,
         "--output-dir", path.join(job.tmp, "render") + path.sep,
       ],
-      { env },
+      { env: pipelineEnv(env) },
       (line) => emit(job, { type: "log", stage: "render", line })
     );
   });
 
   await stage(job, "export", async () => {
     await spawnLines(
-      "bash",
+      bashCmd(),
       [
         path.join(SCRIPTS_DIR, "export.sh"),
         "--input-dir", path.join(job.tmp, "render") + path.sep,
         "--platform", platform,
         "--output-dir", path.join(job.tmp, "out") + path.sep,
       ],
-      { env },
+      { env: pipelineEnv(env) },
       () => {}
     );
   });

@@ -41,6 +41,11 @@ Open **http://localhost:5173**:
 
 Your API key is stored locally on the server (`.data/config.json`, gitignored) and is never sent back to the browser.
 
+**Runs on Windows, macOS, and Linux** — the server resolves the venv Python, `ffmpeg`, and `bash`
+per-OS. Install the pipeline once (`setup.ps1` on Windows, `setup-mac.sh` on macOS, `setup.sh` on
+Linux), then `npm install && npm run dev` anywhere. (Only the pipeline tools are OS-specific; the
+React + Node app itself is platform-neutral.)
+
 Architecture: the Node server shells out to the same Python/Remotion pipeline; only the scoring
 call is swapped from Claude to your chosen provider via the Vercel AI SDK (`@ai-sdk/google`,
 `@ai-sdk/groq`). See [SETUP-MAC.md](SETUP-MAC.md) for the M4 setup.
