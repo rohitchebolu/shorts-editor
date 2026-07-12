@@ -27,8 +27,8 @@ if ! command -v brew >/dev/null 2>&1; then
 fi
 
 # --- 1. System tools via Homebrew ---
-echo "[brew] installing ffmpeg, jq, deno, node (skips if already present)..."
-for pkg in ffmpeg jq deno node; do
+echo "[brew] installing ffmpeg, jq, deno, node, uv (skips if already present)..."
+for pkg in ffmpeg jq deno node uv; do
     if brew list --formula "$pkg" >/dev/null 2>&1; then
         echo "  $pkg already installed"
     else
@@ -37,24 +37,17 @@ for pkg in ffmpeg jq deno node; do
 done
 # deno = JS runtime yt-dlp needs for reliable YouTube extraction.
 
-# --- 2. Python venv + deps (CPU/Metal; no PyTorch needed) ---
-VENV="$HOME/.shorts-skill"
-if [ ! -x "$VENV/bin/python3" ]; then
-    echo "[python] creating venv at $VENV ..."
-    python3 -m venv "$VENV"
-fi
-echo "[python] installing dependencies ..."
-"$VENV/bin/pip" install --quiet --upgrade pip
-"$VENV/bin/pip" install --quiet -r "$SCRIPT_DIR/requirements.txt"
-
-# Optional: MLX Whisper — Apple GPU/Neural Engine transcription (fast large-v3).
+# --- 2. Python deps via uv (fast). Creates ./.venv from pyproject.toml + uv.lock. ---
+# On Apple Silicon, include the `mac` extra (mlx-whisper — GPU/Neural-Engine transcription).
+cd "$SCRIPT_DIR"
 if [ "$ARCH" = "arm64" ]; then
-    echo "[python] installing mlx-whisper (Apple Silicon fast transcription) ..."
-    "$VENV/bin/pip" install --quiet mlx-whisper || \
-        echo "  (mlx-whisper install failed — the default faster-whisper backend still works)"
+    echo "[python] uv sync --extra mac ..."
+    uv sync --extra mac
+else
+    echo "[python] uv sync ..."
+    uv sync
 fi
-
-"$VENV/bin/python3" -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[python] core imports OK')"
+uv run python -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[python] core imports OK')"
 
 # --- 3. MediaPipe face model (also auto-downloads on first use) ---
 MODELS="$HOME/.shorts-tools/models"
@@ -74,7 +67,7 @@ echo "[node] installing Remotion dependencies ..."
 
 echo ""
 echo "=== Setup complete ==="
-echo "Venv:   $VENV"
+echo "Venv:   ./.venv  (managed by uv — 'uv sync' to update)"
 echo ""
 echo "Start the web app (no Claude needed):   npm run dev"
 echo "  then open http://localhost:5173, add your Gemini/Groq key in Settings, paste a URL."

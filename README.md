@@ -66,7 +66,7 @@ call is swapped from Claude to your chosen provider via the Vercel AI SDK (`@ai-
 ## Prerequisites
 
 - **FFmpeg** (system package)
-- **Python 3.10+**
+- **Python 3.12+** with [uv](https://docs.astral.sh/uv/) (the setup scripts install uv and run `uv sync`)
 - **Node.js 18+**
 - **yt-dlp** (for URL input) + a **JS runtime (deno)** for reliable YouTube extraction
 - **Claude Code** (CLI)
@@ -120,9 +120,8 @@ WSL 2 also works if you prefer a Linux environment (`bash setup.sh && bash insta
 
 ### What `setup.sh` does
 
-- Creates a Python virtual environment at `~/.shorts-skill/` (or reuses `~/.video-skill/` if it exists)
-- Installs `faster-whisper`, `mediapipe`, `numpy`, `opencv-python`, `yt-dlp` (PyTorch only if an NVIDIA GPU is present — faster-whisper uses CTranslate2, so CPU needs no PyTorch)
-- Runs `npm install` in the `remotion/` directory
+- Installs [uv](https://docs.astral.sh/uv/) if needed, then `uv sync` — creates a project-local `./.venv` from `pyproject.toml` + `uv.lock` (`faster-whisper`, `mediapipe`, `numpy`, `opencv-python`, `yt-dlp`; no PyTorch needed — faster-whisper uses CTranslate2)
+- Runs `npm install` for the web app + the `remotion/` project
 - Checks for system dependencies (FFmpeg, jq)
 
 > On **native Windows**, use `setup.ps1` instead (see [Windows](#windows-native) below) — it also fetches portable ffmpeg/jq/deno and the MediaPipe face model.

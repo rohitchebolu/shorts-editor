@@ -19,11 +19,12 @@ bash setup-mac.sh
 ```
 
 `setup-mac.sh` installs everything:
-- **Homebrew:** `ffmpeg`, `jq`, `deno` (JS runtime yt-dlp needs for YouTube), `node`
-- **Python venv** at `~/.shorts-skill` with `faster-whisper`, `mediapipe`, `opencv`, `numpy`, `yt-dlp`
-  (CPU/Metal — **no PyTorch**), plus **`mlx-whisper`** for fast Apple-Silicon transcription
+- **Homebrew:** `ffmpeg`, `jq`, `deno` (JS runtime yt-dlp needs for YouTube), `node`, `uv`
+- **Python deps via `uv sync`** → a project-local `./.venv` from `pyproject.toml` + `uv.lock`
+  (`faster-whisper`, `mediapipe`, `opencv`, `numpy`, `yt-dlp`; **no PyTorch**), plus **`mlx-whisper`**
+  (the `mac` extra) for fast Apple-Silicon transcription
 - MediaPipe **face model** → `~/.shorts-tools/models/`
-- **Remotion** node deps (`npm install`)
+- **Web-app + Remotion** node deps (`npm install`)
 
 Then install the skill (optional — you can also run from the project folder):
 
@@ -76,8 +77,8 @@ bash scripts/run_py.sh scripts/transcribe.py INPUT.mp4 \
 
 ## 7. Troubleshooting
 
-- **`mediapipe` install fails:** ensure you're on arm64 Python (`python3 -c "import platform;print(platform.machine())"` → `arm64`). If a wheel is missing, try `pip install mediapipe-silicon`.
-- **`mlx-whisper` missing / errors:** it's optional — the default `faster-whisper` backend still works. Reinstall with `~/.shorts-skill/bin/pip install -U mlx-whisper`.
+- **`mediapipe` install fails:** ensure you're on arm64 Python. If a wheel is missing, try `uv pip install mediapipe-silicon`.
+- **`mlx-whisper` missing / errors:** it's optional — the default `faster-whisper` backend still works. Reinstall with `uv sync --extra mac`.
 - **yt-dlp "Video unavailable":** make sure `deno` is installed (`brew install deno`) — yt-dlp needs a JS runtime for YouTube.
 - **First render downloads a Chrome Headless Shell (~100 MB):** one-time, cached afterward.
 

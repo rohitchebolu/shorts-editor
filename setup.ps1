@@ -11,23 +11,17 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 Write-Host "=== claude-shorts native-Windows setup ===`n"
 
-# --- 1. Python venv ---
-$venv = Join-Path $HOME ".shorts-skill"
-$py = $null
-foreach ($ver in @("3.13", "3.12", "3.11")) {
-    if (& py "-$ver" -c "print(1)" 2>$null) { $pyLauncher = "-$ver"; break }
+# --- 1. Python deps via uv (creates ./.venv from pyproject.toml + uv.lock) ---
+if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
+    Write-Host "[uv] installing uv ..."
+    powershell -ExecutionPolicy Bypass -Command "irm https://astral.sh/uv/install.ps1 | iex"
+    $env:Path = "$HOME\.local\bin;$env:Path"
 }
-if (-not $pyLauncher) { throw "No suitable Python (3.11-3.13) found via the 'py' launcher." }
-
-if (-not (Test-Path (Join-Path $venv "Scripts\python.exe"))) {
-    Write-Host "[Python] creating venv at $venv ($pyLauncher) ..."
-    & py $pyLauncher -m venv $venv
-}
-$py = Join-Path $venv "Scripts\python.exe"
-Write-Host "[Python] installing dependencies (CPU-only) ..."
-& $py -m pip install --upgrade pip | Out-Null
-& $py -m pip install -r (Join-Path $ScriptDir "requirements.txt")
-& $py -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[Python] imports OK')"
+Write-Host "[Python] uv sync ..."
+Push-Location $ScriptDir
+uv sync
+uv run python -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[Python] imports OK')"
+Pop-Location
 
 # --- 2. Portable tools (ffmpeg, ffprobe, jq, deno) ---
 $tools = Join-Path $HOME ".shorts-tools\bin"
@@ -83,6 +77,6 @@ Push-Location (Join-Path $ScriptDir "remotion")
 Pop-Location
 
 Write-Host "`n=== Setup complete ==="
-Write-Host "Python venv: $venv"
+Write-Host "Python venv: .\.venv  (managed by uv — 'uv sync' to update)"
 Write-Host "Tools:       $tools"
 Write-Host "Use /shorts in Claude Code, or run the pipeline scripts via scripts/run_py.sh"

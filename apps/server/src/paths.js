@@ -16,11 +16,13 @@ function firstExisting(candidates, fallback) {
   return fallback;
 }
 
-/** Absolute path to the venv's Python interpreter (Unix bin/ or Windows Scripts/). */
+/** Absolute path to the venv's Python interpreter — project .venv (uv) first, then shared skill venvs. */
 export function venvPython() {
   const home = os.homedir();
   return firstExisting(
     [
+      path.join(REPO_ROOT, ".venv", "bin", "python3"),
+      path.join(REPO_ROOT, ".venv", "Scripts", "python.exe"),
       path.join(home, ".video-skill", "bin", "python3"),
       path.join(home, ".shorts-skill", "bin", "python3"),
       path.join(home, ".video-skill", "Scripts", "python.exe"),

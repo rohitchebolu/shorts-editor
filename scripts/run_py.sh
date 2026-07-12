@@ -19,10 +19,13 @@ fi
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 
-# Locate the venv (shared claude-video venv takes priority, matching the base skill).
+# Locate the venv: project-local uv venv (.venv) first, then the shared skill venvs.
 VENV="${SHORTS_VENV:-}"
 if [ -z "${VENV}" ]; then
-    if [ -d "$HOME/.video-skill" ]; then
+    ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [ -d "$ROOT/.venv" ]; then
+        VENV="$ROOT/.venv"
+    elif [ -d "$HOME/.video-skill" ]; then
         VENV="$HOME/.video-skill"
     else
         VENV="$HOME/.shorts-skill"

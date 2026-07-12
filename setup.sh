@@ -8,70 +8,24 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 echo "=== claude-shorts dependency setup ==="
 echo ""
 
-# --- Python Virtual Environment ---
+# --- Python dependencies via uv (fast; creates ./.venv from pyproject.toml + uv.lock) ---
 
-# Check if shared venv exists (from claude-video)
-VENV=""
-if [ -d "$HOME/.video-skill" ]; then
-    VENV="$HOME/.video-skill"
-    echo "[Python] Found shared venv at ~/.video-skill"
-
-    # Check if faster-whisper is already installed
-    if "$VENV/bin/python3" -c "import faster_whisper" 2>/dev/null; then
-        echo "[Python] faster-whisper already installed — skipping Python setup"
-    else
-        echo "[Python] Installing faster-whisper into shared venv..."
-        "$VENV/bin/pip" install --quiet faster-whisper
-    fi
-
-    # Check mediapipe
-    if ! "$VENV/bin/python3" -c "import mediapipe" 2>/dev/null; then
-        echo "[Python] Installing mediapipe..."
-        "$VENV/bin/pip" install --quiet mediapipe
-    fi
-
-    # Check opencv
-    if ! "$VENV/bin/python3" -c "import cv2" 2>/dev/null; then
-        echo "[Python] Installing opencv-python..."
-        "$VENV/bin/pip" install --quiet opencv-python
-    fi
-
-    # Check yt-dlp (Step 0 URL ingestion)
-    if ! "$VENV/bin/python3" -c "import yt_dlp" 2>/dev/null; then
-        echo "[Python] Installing yt-dlp..."
-        "$VENV/bin/pip" install --quiet yt-dlp
-    fi
-else
-    VENV="$HOME/.shorts-skill"
-    if [ -d "$VENV" ]; then
-        echo "[Python] Found venv at ~/.shorts-skill"
-    else
-        echo "[Python] Creating venv at ~/.shorts-skill..."
-        python3 -m venv "$VENV"
-    fi
-
-    echo "[Python] Installing dependencies..."
-    "$VENV/bin/pip" install --quiet --upgrade pip
-
-    # Check for NVIDIA GPU to decide PyTorch variant
-    if command -v nvidia-smi &>/dev/null; then
-        echo "[Python] NVIDIA GPU detected — installing PyTorch with CUDA..."
-        "$VENV/bin/pip" install --quiet torch torchvision torchaudio \
-            --index-url https://download.pytorch.org/whl/cu128
-    else
-        echo "[Python] No NVIDIA GPU — installing CPU-only PyTorch..."
-        "$VENV/bin/pip" install --quiet torch torchvision torchaudio \
-            --index-url https://download.pytorch.org/whl/cpu
-    fi
-
-    echo "[Python] Installing faster-whisper, mediapipe, numpy, opencv-python, yt-dlp..."
-    "$VENV/bin/pip" install --quiet faster-whisper mediapipe numpy opencv-python yt-dlp
+if ! command -v uv >/dev/null 2>&1; then
+    echo "[uv] Installing uv..."
+    curl -LsSf https://astral.sh/uv/install.sh | sh
+    export PATH="$HOME/.local/bin:$PATH"
 fi
 
-echo "[Python] Venv ready: $VENV"
+echo "[Python] uv sync..."
+cd "$SCRIPT_DIR"
+uv sync
+uv run python -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[Python] imports OK')"
 echo ""
 
-# --- Node.js / Remotion ---
+# --- Node.js: web app + Remotion ---
+
+echo "[Node] Installing web-app (React UI + server) dependencies..."
+( cd "$SCRIPT_DIR" && npm install --silent )
 
 echo "[Node] Setting up Remotion project..."
 
@@ -116,7 +70,8 @@ fi
 echo ""
 echo "=== Setup complete ==="
 echo ""
-echo "Python venv: $VENV"
+echo "Python venv: ./.venv  (managed by uv — 'uv sync' to update)"
 echo "Remotion:    $SCRIPT_DIR/remotion/"
 echo ""
-echo "To use: invoke /shorts in Claude Code"
+echo "Start the web app:  npm run dev   (UI on :5173)"
+echo "Or invoke /shorts in Claude Code."
