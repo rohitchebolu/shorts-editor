@@ -44,10 +44,80 @@ const readJsonSafe = (p) => {
 };
 const writeJson = (p, obj) => fs.writeFileSync(p, JSON.stringify(obj, null, 2));
 
+// --- Lightweight job persistence (a job.json per job → survives server restarts) ---
+function persist(job) {
+  try {
+    fs.writeFileSync(
+      path.join(job.tmp, "job.json"),
+      JSON.stringify(
+        {
+          id: job.id, url: job.url, options: job.options, status: job.status,
+          phase: job.phase, stage: job.stage, createdAt: job.createdAt,
+          transcript: job.transcript, contentType: job.contentType,
+          candidates: job.candidates, outputs: job.outputs, error: job.error,
+        },
+        null,
+        2
+      )
+    );
+  } catch {
+    /* best-effort */
+  }
+}
+
+function loadJobs() {
+  let entries = [];
+  try {
+    entries = fs.readdirSync(JOBS_DIR);
+  } catch {
+    return;
+  }
+  for (const d of entries) {
+    let data;
+    try {
+      data = JSON.parse(fs.readFileSync(path.join(JOBS_DIR, d, "job.json"), "utf-8"));
+    } catch {
+      continue;
+    }
+    if (!data.id || jobs.has(data.id)) continue;
+    const emitter = new EventEmitter();
+    emitter.setMaxListeners(0);
+    jobs.set(data.id, {
+      ...data,
+      // a job that was mid-run when the server stopped can't be live anymore
+      status: data.status === "running" ? "interrupted" : data.status,
+      tmp: path.join(JOBS_DIR, d),
+      events: [],
+      emitter,
+    });
+  }
+}
+
+export function listJobs() {
+  return [...jobs.values()]
+    .map((j) => ({
+      id: j.id,
+      url: j.url,
+      status: j.status,
+      phase: j.phase,
+      createdAt: j.createdAt || 0,
+      outputs: (j.outputs || []).length,
+      options: j.options,
+    }))
+    .sort((a, b) => b.createdAt - a.createdAt);
+}
+
+export function rerunJob(id) {
+  const j = jobs.get(id);
+  if (!j) return null;
+  return startJob({ url: j.url, ...(j.options || {}) });
+}
+
 function emit(job, ev) {
   const e = { t: Date.now(), ...ev };
   job.events.push(e);
   job.emitter.emit("event", e);
+  if (ev.type !== "log") persist(job); // snapshot on every meaningful transition
 }
 
 /** Client-safe snapshot of a job. */
@@ -136,6 +206,7 @@ export function startJob({ url, model = "small", backend = "faster-whisper", max
   const job = {
     id,
     url,
+    createdAt: Date.now(),
     options: { model, backend, maxHeight },
     status: "running",
     phase: 1,
@@ -315,3 +386,6 @@ async function runPhase2(job, { segmentIds, style, platform }) {
   job.stage = null;
   emit(job, { type: "status", status: "done", outputs: job.outputs });
 }
+
+// Restore historical jobs from disk on startup so the Recent Jobs list persists.
+loadJobs();

@@ -11,6 +11,8 @@ import {
   getJob,
   selectAndRender,
   snapshot,
+  listJobs,
+  rerunJob,
   PHASE1_STAGES,
   PHASE2_STAGES,
 } from "./pipeline.js";
@@ -49,6 +51,16 @@ app.post("/api/jobs", (req, res) => {
   if (!url || typeof url !== "string") return res.status(400).json({ error: "url is required" });
   const job = startJob(req.body);
   res.json({ id: job.id });
+});
+
+// Recent jobs (newest first) — for the UI history list.
+app.get("/api/jobs", (_req, res) => res.json(listJobs()));
+
+// Re-run: start a fresh job with the same URL + options as an existing one.
+app.post("/api/jobs/:id/rerun", (req, res) => {
+  const nj = rerunJob(req.params.id);
+  if (!nj) return res.status(404).json({ error: "job not found" });
+  res.json({ id: nj.id });
 });
 
 app.get("/api/jobs/:id", (req, res) => {

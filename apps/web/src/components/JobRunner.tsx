@@ -3,9 +3,12 @@ import {
   startJob,
   selectSegments,
   subscribe,
+  listJobs,
+  rerunJob,
   type Candidate,
   type Output,
   type ProviderConfig,
+  type JobSummary,
 } from "../api";
 
 const STAGES = [
@@ -54,9 +57,15 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
   const [style, setStyle] = useState("bold");
   const [outputs, setOutputs] = useState<Output[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [recentJobs, setRecentJobs] = useState<JobSummary[]>([]);
   const unsubRef = useRef<null | (() => void)>(null);
 
-  useEffect(() => () => unsubRef.current?.(), []);
+  const refreshRecent = () => listJobs().then(setRecentJobs).catch(() => {});
+
+  useEffect(() => {
+    refreshRecent();
+    return () => unsubRef.current?.();
+  }, []);
 
   function reset() {
     setStageState(Object.fromEntries(STAGES.map((s) => [s, "pending"])));
@@ -96,28 +105,51 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
         }
         if (ev.status === "done") setOutputs(ev.outputs || []);
         if (ev.status === "error") setError(ev.error);
+        refreshRecent();
         break;
       case "snapshot":
-        // hydrate on (re)connect
+        // hydrate on (re)connect / when viewing a past job
         if (ev.value?.candidates?.length) setCandidates(ev.value.candidates);
+        if (ev.value?.contentType) setContentType(ev.value.contentType);
         if (ev.value?.status) setStatus(ev.value.status);
         if (ev.value?.outputs?.length) setOutputs(ev.value.outputs);
+        if (ev.value?.status === "done")
+          setStageState(Object.fromEntries(STAGES.map((s) => [s, "done"])));
         break;
     }
   }
 
-  async function run() {
+  function attach(id: string) {
     reset();
+    setJobId(id);
     setStatus("running");
+    unsubRef.current?.();
+    unsubRef.current = subscribe(id, onEvent);
+  }
+
+  async function run() {
     try {
       const { id } = await startJob({ url, model, backend, maxHeight: 1080 });
-      setJobId(id);
-      unsubRef.current?.();
-      unsubRef.current = subscribe(id, onEvent);
+      attach(id);
     } catch (e: any) {
       setError(e.message);
       setStatus("error");
     }
+  }
+
+  async function rerun(id: string) {
+    try {
+      const { id: newId } = await rerunJob(id);
+      attach(newId);
+      refreshRecent();
+    } catch (e: any) {
+      setError(e.message);
+    }
+  }
+
+  // Load a past job into the view (its snapshot populates status/candidates/outputs).
+  function view(id: string) {
+    attach(id);
   }
 
   async function render() {
@@ -285,6 +317,51 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
               </div>
             ))}
           </div>
+        </div>
+      )}
+
+      {recentJobs.length > 0 && (
+        <div className="panel">
+          <h2>Recent jobs</h2>
+          <table>
+            <tbody>
+              {recentJobs.map((j) => (
+                <tr key={j.id}>
+                  <td
+                    className="mono"
+                    style={{ maxWidth: 340, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                    title={j.url}
+                  >
+                    {j.url}
+                  </td>
+                  <td>
+                    <span
+                      className={`pill ${
+                        j.status === "done"
+                          ? "ok"
+                          : j.status === "error" || j.status === "interrupted"
+                          ? "warn"
+                          : ""
+                      }`}
+                    >
+                      {j.status}
+                    </span>
+                  </td>
+                  <td className="muted">{j.outputs > 0 ? `${j.outputs} clip${j.outputs === 1 ? "" : "s"}` : ""}</td>
+                  <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
+                    {j.outputs > 0 && (
+                      <button className="ghost" onClick={() => view(j.id)} style={{ marginRight: 6 }}>
+                        View
+                      </button>
+                    )}
+                    <button className="ghost" onClick={() => rerun(j.id)} disabled={running}>
+                      Re-run
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </>

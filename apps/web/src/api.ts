@@ -19,6 +19,16 @@ export type Candidate = {
 
 export type Output = { file: string; url: string };
 
+export type JobSummary = {
+  id: string;
+  url: string;
+  status: string;
+  phase: number;
+  createdAt: number;
+  outputs: number;
+  options: { model?: string; backend?: string; maxHeight?: number };
+};
+
 async function json<T>(r: Response): Promise<T> {
   const body = await r.json().catch(() => ({}));
   if (!r.ok) throw new Error((body as any).error || `HTTP ${r.status}`);
@@ -43,6 +53,11 @@ export const startJob = (body: { url: string; model?: string; backend?: string; 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   }).then((r) => json<{ id: string }>(r));
+
+export const listJobs = () => fetch("/api/jobs").then((r) => json<JobSummary[]>(r));
+
+export const rerunJob = (id: string) =>
+  fetch(`/api/jobs/${id}/rerun`, { method: "POST" }).then((r) => json<{ id: string }>(r));
 
 export const selectSegments = (
   id: string,
