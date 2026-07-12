@@ -38,16 +38,18 @@ done
 # deno = JS runtime yt-dlp needs for reliable YouTube extraction.
 
 # --- 2. Python deps via uv (fast). Creates ./.venv from pyproject.toml + uv.lock. ---
-# On Apple Silicon, include the `mac` extra (mlx-whisper — GPU/Neural-Engine transcription).
 cd "$SCRIPT_DIR"
-if [ "$ARCH" = "arm64" ]; then
-    echo "[python] uv sync --extra mac ..."
-    uv sync --extra mac
-else
-    echo "[python] uv sync ..."
-    uv sync
-fi
+echo "[python] uv sync (core deps) ..."
+uv sync
 uv run python -c "import faster_whisper, mediapipe, cv2, numpy, yt_dlp; print('[python] core imports OK')"
+
+# Apple Silicon: add the mlx-whisper extra for fast GPU/Neural-Engine transcription.
+# Non-fatal — if it can't install, faster-whisper (the default backend) still works.
+if [ "$ARCH" = "arm64" ]; then
+    echo "[python] uv sync --extra mac (mlx-whisper — optional fast transcription) ..."
+    uv sync --extra mac || \
+        echo "  (mlx extra failed — faster-whisper still works; retry later with 'uv sync --extra mac')"
+fi
 
 # --- 3. MediaPipe face model (also auto-downloads on first use) ---
 MODELS="$HOME/.shorts-tools/models"

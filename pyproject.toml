@@ -3,19 +3,24 @@ name = "shorts-editor"
 version = "0.1.0"
 description = "Python pipeline for the shorts editor: URL fetch, Whisper transcription, content detection, boundary snapping, and reframing."
 requires-python = ">=3.12"
-# Version floors are the exact versions verified working in this project.
 dependencies = [
     "faster-whisper>=1.2.1",
     "mediapipe>=0.10.35",
-    "numpy>=2.5.1",
+    # numpy kept loose on purpose: mlx-whisper -> numba caps numpy below ~2.2, so a hard
+    # numpy>=2.5 pin forces numba down to an ancient build that won't compile on Python 3.13.
+    "numpy>=1.24.0",
     "opencv-python>=5.0.0.93",
     "yt-dlp>=2026.7.4",
 ]
 
 [project.optional-dependencies]
 # Apple Silicon only: GPU / Neural-Engine transcription (fast large-v3).
-# Marker keeps it off Windows/Linux resolves. Install with:  uv sync --extra mac
-mac = ["mlx-whisper>=0.4.0 ; sys_platform == 'darwin' and platform_machine == 'arm64'"]
+# Markers keep these off Windows/Linux resolves. Install with:  uv sync --extra mac
+mac = [
+    "mlx-whisper>=0.4.0 ; sys_platform == 'darwin' and platform_machine == 'arm64'",
+    # Force a modern numba/llvmlite (mlx-whisper -> numba); old ones don't build on Python 3.13.
+    "numba>=0.60 ; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
 
 [tool.uv]
 # This project is an app/dependency-set, not an installable package — don't try to build it.
