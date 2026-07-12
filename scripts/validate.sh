@@ -120,7 +120,8 @@ if [ $TOTAL -eq 0 ]; then
 fi
 
 # Build JSON output
-RESULTS_JSON=$(printf '%s\n' "${RESULTS[@]}" | paste -sd ',' | sed 's/^/[/' | sed 's/$/]/')
+# Join the JSON objects with commas (pure bash — portable to macOS BSD tools / bash 3.2).
+RESULTS_JSON="[$(IFS=','; printf '%s' "${RESULTS[*]}")]"
 ALL_PASS="false"
 [ $FAILED -eq 0 ] && ALL_PASS="true"
 

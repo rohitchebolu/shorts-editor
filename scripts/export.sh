@@ -160,7 +160,8 @@ for input_file in "$INPUT_DIR"/short_*.mp4; do
 done
 
 # Build JSON output
-RESULTS_JSON=$(printf '%s\n' "${RESULTS[@]}" | paste -sd ',' | sed 's/^/[/' | sed 's/$/]/')
+# Join the JSON objects with commas (pure bash — portable to macOS BSD tools / bash 3.2).
+RESULTS_JSON="[$(IFS=','; printf '%s' "${RESULTS[*]}")]"
 
 cat <<EOF
 {
