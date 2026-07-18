@@ -33,12 +33,30 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-# Detect GPU for NVENC
+# Pick the best available hardware H.264 encoder, by presence in ffmpeg's encoder
+# list. Priority: NVENC (Nvidia) > VideoToolbox (Apple Silicon / macOS) > libx264
+# (software fallback). Detection is portable: on Windows/Linux without the codec
+# compiled in, the grep simply fails and we fall through to the next tier.
 HAS_NVENC="false"
 if command -v nvidia-smi &>/dev/null && command -v ffmpeg &>/dev/null; then
     if ffmpeg -hide_banner -encoders 2>/dev/null | grep -q "h264_nvenc"; then
         HAS_NVENC="true"
     fi
+fi
+
+HAS_VIDEOTOOLBOX="false"
+if command -v ffmpeg &>/dev/null; then
+    if ffmpeg -hide_banner -encoders 2>/dev/null | grep -q "h264_videotoolbox"; then
+        HAS_VIDEOTOOLBOX="true"
+    fi
+fi
+
+if [ "$HAS_NVENC" = "true" ]; then
+    ENCODER="h264_nvenc"
+elif [ "$HAS_VIDEOTOOLBOX" = "true" ]; then
+    ENCODER="h264_videotoolbox"
+else
+    ENCODER="libx264"
 fi
 
 # Platform encoding functions
@@ -47,6 +65,15 @@ encode_youtube() {
     if [ "$HAS_NVENC" = "true" ]; then
         ffmpeg -y -i "$input" \
             -c:v h264_nvenc -preset p5 -tune hq \
+            -b:v 12M -maxrate 14M -bufsize 24M \
+            -profile:v high -level 4.2 \
+            -af loudnorm=I=-14:TP=-1:LRA=11 \
+            -c:a aac -b:a 192k -ar 48000 \
+            -pix_fmt yuv420p -movflags +faststart \
+            "$output" 2>/dev/null
+    elif [ "$HAS_VIDEOTOOLBOX" = "true" ]; then
+        ffmpeg -y -i "$input" \
+            -c:v h264_videotoolbox -allow_sw 1 \
             -b:v 12M -maxrate 14M -bufsize 24M \
             -profile:v high -level 4.2 \
             -af loudnorm=I=-14:TP=-1:LRA=11 \
@@ -75,6 +102,14 @@ encode_tiktok() {
             -c:a aac -b:a 128k -ar 44100 \
             -pix_fmt yuv420p -movflags +faststart \
             "$output" 2>/dev/null
+    elif [ "$HAS_VIDEOTOOLBOX" = "true" ]; then
+        ffmpeg -y -i "$input" \
+            -c:v h264_videotoolbox -allow_sw 1 \
+            -b:v 10M -maxrate 10M -bufsize 20M \
+            -af loudnorm=I=-14:TP=-1:LRA=11 \
+            -c:a aac -b:a 128k -ar 44100 \
+            -pix_fmt yuv420p -movflags +faststart \
+            "$output" 2>/dev/null
     else
         ffmpeg -y -i "$input" \
             -c:v libx264 -preset slow -crf 18 \
@@ -91,6 +126,15 @@ encode_instagram() {
     if [ "$HAS_NVENC" = "true" ]; then
         ffmpeg -y -i "$input" \
             -c:v h264_nvenc -preset p5 -tune hq \
+            -b:v 4500k -maxrate 5000k -bufsize 10M \
+            -profile:v high -level 4.2 \
+            -af loudnorm=I=-14:TP=-1:LRA=11 \
+            -c:a aac -b:a 128k -ar 44100 \
+            -pix_fmt yuv420p -movflags +faststart \
+            "$output" 2>/dev/null
+    elif [ "$HAS_VIDEOTOOLBOX" = "true" ]; then
+        ffmpeg -y -i "$input" \
+            -c:v h264_videotoolbox -allow_sw 1 \
             -b:v 4500k -maxrate 5000k -bufsize 10M \
             -profile:v high -level 4.2 \
             -af loudnorm=I=-14:TP=-1:LRA=11 \
@@ -167,7 +211,9 @@ cat <<EOF
 {
   "action": "export",
   "platform": "$PLATFORM",
+  "encoder": "$ENCODER",
   "nvenc": $HAS_NVENC,
+  "videotoolbox": $HAS_VIDEOTOOLBOX,
   "shorts_exported": $COUNT,
   "output_dir": "$OUTPUT_DIR",
   "files": $RESULTS_JSON

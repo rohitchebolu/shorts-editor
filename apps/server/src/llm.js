@@ -44,16 +44,25 @@ export async function scoreSegments({ transcript, rubric, config }) {
     .map((s) => `[${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}] ${s.text}`)
     .join("\n");
 
+  // Scale the candidate pool with video length (~1 per 2 min): long videos get a
+  // bigger pool to choose from, short ones aren't over-mined. Bounded to 6-24.
+  const durationMin = (Number(transcript.duration) || 0) / 60;
+  const target = Math.min(24, Math.max(6, Math.round(durationMin / 2)));
+  const lo = Math.max(5, target - 2);
+  const hi = target + 3;
+
   const system =
     "You are an expert short-form video editor. From a timestamped transcript, pick the " +
-    "8-12 best standalone clips (15-55s each) to become vertical Shorts. Judge each on hook " +
-    "strength, standalone coherence, emotional intensity, value density, and payoff. Prefer " +
-    "clips that make sense with zero outside context and end on a satisfying payoff.";
+    `${lo}-${hi} best standalone clips to become vertical Shorts. Target 30-55s each, aiming for the ` +
+    "35-50s sweet spot (the most-watched Shorts length); go shorter only when a tighter cut is " +
+    "clearly stronger, and never exceed 55s so the clip can end on a full sentence. Judge each " +
+    "on hook strength, standalone coherence, emotional intensity, value density, and payoff. " +
+    "Prefer clips that make sense with zero outside context and end on a satisfying payoff.";
 
   const prompt =
     `Scoring rubric:\n${rubric}\n\n` +
     `Transcript (timestamps in seconds):\n${lines}\n\n` +
-    `Return 8-12 candidate clips. For each: start/end in seconds (must fall within the ` +
+    `Return ${lo}-${hi} candidate clips. For each: start/end in seconds (must fall within the ` +
     `transcript), a specific and concrete hook_line1, a score 0-100, and a one-sentence rationale.`;
 
   const { object } = await generateObject({ model, schema: CandidatesSchema, system, prompt });
