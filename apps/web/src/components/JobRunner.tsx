@@ -40,10 +40,15 @@ const STAGE_LABEL: Record<Stage, string> = {
 const mmss = (s: number) =>
   `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
+// macOS (incl. Apple Silicon) runs the GPU-accelerated Whisper `mlx` backend, so
+// default the backend to mlx there; other platforms default to faster-whisper (CPU).
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent || "");
+
 export default function JobRunner({ config }: { config: ProviderConfig }) {
   const [url, setUrl] = useState("");
-  const [model, setModel] = useState("small");
-  const [backend, setBackend] = useState("faster-whisper");
+  const [model, setModel] = useState(IS_MAC ? "large-v3-turbo" : "small");
+  const [backend, setBackend] = useState(IS_MAC ? "mlx" : "faster-whisper");
   const [platform, setPlatform] = useState("youtube");
 
   const [jobId, setJobId] = useState<string | null>(null);
@@ -97,11 +102,15 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
           if (ev.candidates) setCandidates(ev.candidates);
           if (ev.contentType) setContentType(ev.contentType);
           if (ev.recommendedStyle) setStyle(ev.recommendedStyle);
-          // preselect the top 3 by score
-          setCandidates((cs) => {
-            setSelected(new Set(cs.slice(0, 3).map((c) => c.id)));
-            return cs;
-          });
+          // Auto-select the server's length-scaled, quality-gated recommendation.
+          if (ev.recommendedIds) {
+            setSelected(new Set(ev.recommendedIds));
+          } else {
+            setCandidates((cs) => {
+              setSelected(new Set(cs.slice(0, 1).map((c) => c.id)));
+              return cs;
+            });
+          }
         }
         if (ev.status === "done") setOutputs(ev.outputs || []);
         if (ev.status === "error") setError(ev.error);
@@ -110,6 +119,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
       case "snapshot":
         // hydrate on (re)connect / when viewing a past job
         if (ev.value?.candidates?.length) setCandidates(ev.value.candidates);
+        if (ev.value?.recommendedIds) setSelected(new Set(ev.value.recommendedIds));
         if (ev.value?.contentType) setContentType(ev.value.contentType);
         if (ev.value?.status) setStatus(ev.value.status);
         if (ev.value?.outputs?.length) setOutputs(ev.value.outputs);
@@ -193,6 +203,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
               <option>small</option>
               <option>medium</option>
               <option>large-v3</option>
+              <option>large-v3-turbo</option>
             </select>
           </div>
           <div className="field" style={{ maxWidth: 150 }}>
@@ -280,14 +291,6 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
             </tbody>
           </table>
           <div className="row" style={{ marginTop: 14 }}>
-            <div className="field" style={{ maxWidth: 150 }}>
-              <label>Caption style</label>
-              <select value={style} onChange={(e) => setStyle(e.target.value)}>
-                <option value="bold">bold</option>
-                <option value="bounce">bounce</option>
-                <option value="clean">clean</option>
-              </select>
-            </div>
             <div className="field" style={{ maxWidth: 150 }}>
               <label>Platform</label>
               <select value={platform} onChange={(e) => setPlatform(e.target.value)}>

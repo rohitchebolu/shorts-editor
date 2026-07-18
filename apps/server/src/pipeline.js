@@ -132,6 +132,10 @@ export function snapshot(j) {
     transcript: j.transcript || null,
     contentType: j.contentType || null,
     candidates: j.candidates,
+    recommendedIds:
+      j.status === "awaiting_selection"
+        ? recommendSelection(j.candidates, j.transcript?.duration)
+        : undefined,
     outputs: j.outputs,
     error: j.error,
   };
@@ -186,6 +190,22 @@ async function stage(job, name, fn) {
 
 function recommendStyle(contentType) {
   return { "talking-head": "bold", screen: "clean", podcast: "bounce" }[contentType] || "bold";
+}
+
+// Balanced auto-selection: video length sets the ceiling (~1 clip per 3 min,
+// clamped 3-12) and a score gate keeps only strong clips — so a weak or short
+// video gets fewer than the max, and a scene-rich one fills it. Falls back to the
+// single best clip if nothing clears the gate. The user can still toggle any
+// candidate in the UI. Candidates arrive pre-sorted by score (highest first).
+const SCORE_GATE = 68;
+const MIN_PER_CLIP = 3;
+function recommendSelection(candidates, durationSec) {
+  if (!candidates || candidates.length === 0) return [];
+  const durationMin = (Number(durationSec) || 0) / 60;
+  const ceiling = Math.min(12, Math.max(3, Math.round(durationMin / MIN_PER_CLIP)));
+  const strong = candidates.filter((c) => c.score >= SCORE_GATE);
+  const picked = (strong.length ? strong : candidates).slice(0, ceiling);
+  return (picked.length ? picked : candidates.slice(0, 1)).map((c) => c.id);
 }
 
 function fail(job, e) {
@@ -279,6 +299,7 @@ async function runPhase1(job) {
     candidates: job.candidates,
     contentType: job.contentType,
     recommendedStyle: recommendStyle(job.contentType?.content_type),
+    recommendedIds: recommendSelection(job.candidates, job.transcript?.duration),
   });
 }
 

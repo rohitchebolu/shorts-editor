@@ -97,6 +97,15 @@ async function main() {
   // Open shared browser instance
   const browser = await openBrowser("chrome");
 
+  // Hardware-accelerated encoding on macOS (VideoToolbox) — a big speedup on Apple
+  // Silicon. Remotion forbids `crf` together with hardware acceleration, so on macOS
+  // we switch to bitrate control; other platforms keep the existing CRF software path
+  // unchanged. "if-possible" still falls back to software if no HW encoder is found.
+  const encodingOptions =
+    process.platform === "darwin"
+      ? { hardwareAcceleration: "if-possible", videoBitrate: "16M" }
+      : { crf: 18 };
+
   const results = [];
 
   try {
@@ -181,7 +190,7 @@ async function main() {
             composition,
             serveUrl,
             codec: "h264",
-            crf: 18,
+            ...encodingOptions,
             outputLocation: outputPath,
             inputProps,
             puppeteerInstance: browser,

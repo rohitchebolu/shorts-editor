@@ -1,17 +1,12 @@
 import { staticFile } from "remotion";
 
 /**
- * Font declarations for caption styles.
+ * Font declarations for on-screen text.
  *
- * Fonts are loaded from public/fonts/ directory:
- * - Montserrat Bold (Bold style) — Google Fonts, OFL
- * - Bangers (Bounce style) — Google Fonts, OFL
- * - Inter Bold (Clean style) — Google Fonts, OFL
- * - Noto Sans Telugu (Telugu fallback for all styles) — Google Fonts, OFL (variable)
- *
- * The Telugu font is added as a per-glyph fallback in every caption font stack so
- * Telugu-English (Tinglish) content renders: Latin glyphs use the primary Latin font,
- * Telugu glyphs fall back to Noto Sans Telugu.
+ * Loaded from public/fonts/:
+ * - Montserrat Bold — the title / hook overlay (and legacy caption styles)
+ * - Inter Bold — the hook subtitle (and legacy caption styles)
+ * - Bangers — legacy caption style (kept for the now-disabled caption renderers)
  *
  * For preview mode, fonts are loaded via @font-face in the browser.
  * For rendering, Remotion handles font loading automatically.
@@ -32,15 +27,10 @@ export const FONTS = {
     src: staticFile("fonts/Inter-Bold.ttf"),
     weight: "700",
   },
-  notoTelugu: {
-    family: "Noto Sans Telugu",
-    src: staticFile("fonts/NotoSansTelugu-Variable.ttf"),
-    weight: "100 900",
-  },
 } as const;
 
 /**
- * CSS @font-face declarations for all caption fonts.
+ * CSS @font-face declarations for all fonts.
  * Inject into document head for preview mode.
  */
 export const fontFaceCSS = Object.values(FONTS)

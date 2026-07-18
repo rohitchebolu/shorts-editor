@@ -92,7 +92,7 @@ final_score = (hook * 0.30) + (coherence * 0.25) + (emotion * 0.20) + (value * 0
 ## Candidate Selection Guidelines
 
 1. **Target 8-12 candidates** from a typical 30-60 minute video
-2. **Duration sweet spot**: 15-55 seconds (peak engagement at 25-40s)
+2. **Duration sweet spot**: 35-50 seconds — the most-watched Shorts length. Prioritize capturing a complete, self-contained moment over brevity. Go shorter (min 30s) only when a tighter cut is clearly stronger. Stay ≤55s so the clip ends on a full sentence; 60s is the hard cap (clips are force-cut there, possibly mid-word).
 3. **Minimum score threshold**: 60 (below this, skip the segment)
 4. **Diversity**: Don't select 5 segments about the same subtopic
 5. **Spacing**: Prefer segments at least 2 minutes apart in source
