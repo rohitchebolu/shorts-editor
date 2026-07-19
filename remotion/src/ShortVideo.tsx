@@ -1,5 +1,6 @@
 import { AbsoluteFill } from "remotion";
 import { VideoFrame } from "./components/VideoFrame";
+import { Captions } from "./components/Captions";
 import { HookOverlay } from "./components/HookOverlay";
 import { ProgressBar } from "./components/ProgressBar";
 import { fontFaceCSS } from "./styles/fonts";
@@ -11,6 +12,8 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
   sourceHeight,
   crop,
   cropKeyframes,
+  captions,
+  captionStyle,
   hookLine1,
   hookLine2,
   showProgressBar,
@@ -18,7 +21,7 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
 }) => {
   return (
     <AbsoluteFill style={{ backgroundColor: "black" }}>
-      {/* Load custom fonts for the title / hook overlay */}
+      {/* Load custom fonts for the title and captions */}
       <style dangerouslySetInnerHTML={{ __html: fontFaceCSS }} />
 
       {/* Reframed video (cropped and scaled to fill 1080x1920) */}
@@ -30,15 +33,17 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
         cropKeyframes={cropKeyframes}
       />
 
+      {/* Word-level captions — edited text / toggled / styled per clip.
+          Renders nothing when the captions array is empty (toggled off). */}
+      <Captions captions={captions} style={captionStyle} />
+
       {/* Title / hook pinned to the top-center for the whole clip */}
       {(hookLine1 || hookLine2) && (
         <HookOverlay line1={hookLine1 ?? ""} line2={hookLine2 ?? ""} />
       )}
 
       {/* Progress bar at bottom */}
-      {showProgressBar && (
-        <ProgressBar durationInSeconds={durationInSeconds} />
-      )}
+      {showProgressBar && <ProgressBar durationInSeconds={durationInSeconds} />}
     </AbsoluteFill>
   );
 };

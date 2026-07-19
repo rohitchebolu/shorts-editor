@@ -136,16 +136,24 @@ async function main() {
         .split("x")
         .map(Number);
 
-      // Extract captions for this segment's time range (in milliseconds)
+      // Captions for this clip. A per-clip override wins (edited text keeps the
+      // original word timings); captionsOff = none; otherwise the auto transcript
+      // words in this clip's window. All offset to clip-local milliseconds.
       const segStartMs = seg.start * 1000;
       const segEndMs = seg.end * 1000;
-      const segCaptions = allCaptions
-        .filter((c) => c.startMs >= segStartMs && c.endMs <= segEndMs)
-        .map((c) => ({
-          text: c.text,
-          startMs: c.startMs - segStartMs, // Offset to clip-local time
-          endMs: c.endMs - segStartMs,
-        }));
+      const durationMs = (seg.end - seg.start) * 1000;
+      let segCaptions;
+      if (seg.captionsOff) {
+        segCaptions = [];
+      } else if (Array.isArray(seg.captions)) {
+        segCaptions = seg.captions
+          .map((c) => ({ text: c.text, startMs: c.startMs - segStartMs, endMs: c.endMs - segStartMs }))
+          .filter((c) => c.endMs > 0 && c.startMs < durationMs);
+      } else {
+        segCaptions = allCaptions
+          .filter((c) => c.startMs >= segStartMs && c.endMs <= segEndMs)
+          .map((c) => ({ text: c.text, startMs: c.startMs - segStartMs, endMs: c.endMs - segStartMs }));
+      }
 
       const durationInSeconds = seg.end - seg.start;
 
@@ -156,7 +164,7 @@ async function main() {
         crop,
         cropKeyframes,
         captions: segCaptions,
-        captionStyle: style,
+        captionStyle: seg.captionStyle || style,
         hookLine1: seg.hook_line1 || "",
         hookLine2: seg.hook_line2 || "",
         showProgressBar: true,

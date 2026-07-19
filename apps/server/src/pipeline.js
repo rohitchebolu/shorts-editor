@@ -216,7 +216,7 @@ function fail(job, e) {
 
 // ---- Phase 1: fetch -> transcribe -> detect -> score -------------------------
 
-export function startJob({ url, model = "small", backend = "faster-whisper", maxHeight = 1080 }) {
+export function startJob({ url, model = "small", backend = "faster-whisper", maxHeight = 1080, mode = "ai" }) {
   const id = newId();
   const tmp = path.join(JOBS_DIR, id);
   fs.mkdirSync(path.join(tmp, "clips"), { recursive: true });
@@ -227,7 +227,7 @@ export function startJob({ url, model = "small", backend = "faster-whisper", max
     id,
     url,
     createdAt: Date.now(),
-    options: { model, backend, maxHeight },
+    options: { model, backend, maxHeight, mode },
     status: "running",
     phase: 1,
     stage: null,
@@ -281,21 +281,27 @@ async function runPhase1(job) {
     emit(job, { type: "data", key: "contentType", value: job.contentType });
   });
 
-  await stage(job, "score", async () => {
-    const cfg = getSecret();
-    if (!cfg.provider || !cfg.apiKey) throw new Error("No LLM provider configured — set one in Settings.");
-    const transcript = readJson(path.join(job.tmp, "transcript.json"));
-    const rubric = fs.readFileSync(RUBRIC_FILE, "utf-8");
-    const cands = await scoreSegments({ transcript, rubric, config: cfg });
-    job.candidates = cands.map((c, i) => ({ id: i + 1, ...c }));
-    emit(job, { type: "data", key: "candidates", value: job.candidates });
-  });
+  // AI mode scores the transcript into candidates; manual mode skips the LLM
+  // entirely (no provider/key required) and opens an empty editor.
+  if (job.options.mode !== "manual") {
+    await stage(job, "score", async () => {
+      const cfg = getSecret();
+      if (!cfg.provider || !cfg.apiKey) throw new Error("No LLM provider configured — set one in Settings.");
+      const transcript = readJson(path.join(job.tmp, "transcript.json"));
+      const rubric = fs.readFileSync(RUBRIC_FILE, "utf-8");
+      const cands = await scoreSegments({ transcript, rubric, config: cfg });
+      job.candidates = cands.map((c, i) => ({ id: i + 1, ...c }));
+      emit(job, { type: "data", key: "candidates", value: job.candidates });
+    });
+  }
 
   job.status = "awaiting_selection";
   job.stage = null;
   emit(job, {
     type: "status",
     status: "awaiting_selection",
+    mode: job.options.mode,
+    duration: job.transcript?.duration || 0,
     candidates: job.candidates,
     contentType: job.contentType,
     recommendedStyle: recommendStyle(job.contentType?.content_type),
@@ -305,19 +311,37 @@ async function runPhase1(job) {
 
 // ---- Phase 2: snap -> extract -> reframe -> render -> export ------------------
 
-export function selectAndRender(job, { segmentIds, style, platform = "youtube" }) {
+export function selectAndRender(job, { segmentIds, segments, style, platform = "youtube" }) {
   if (job.status !== "awaiting_selection") throw new Error(`Job is ${job.status}, not awaiting selection.`);
   job.phase = 2;
   job.status = "running";
-  runPhase2(job, { segmentIds, style, platform }).catch((e) => fail(job, e));
+  runPhase2(job, { segmentIds, segments, style, platform }).catch((e) => fail(job, e));
 }
 
-async function runPhase2(job, { segmentIds, style, platform }) {
+async function runPhase2(job, { segmentIds, segments, style, platform }) {
   const env = { SHORTS_TMP: job.tmp };
   const input = path.join(job.tmp, "input.mp4");
   const contentType = job.contentType?.content_type || "talking-head";
   const finalStyle = style || recommendStyle(contentType);
-  const chosen = job.candidates.filter((c) => segmentIds.includes(c.id));
+
+  // Editor-provided segments (edited boundaries/titles/captions) take precedence;
+  // otherwise fall back to id-based selection of LLM candidates.
+  let chosen;
+  if (Array.isArray(segments) && segments.length) {
+    chosen = segments.map((s, i) => ({
+      id: i + 1,
+      start: Number(s.start),
+      end: Number(s.end),
+      hook_line1: s.hook_line1 ?? s.title ?? "",
+      hook_line2: s.hook_line2 ?? s.subtitle ?? "",
+      score: Number(s.score) || 0,
+      captions: Array.isArray(s.captions) ? s.captions : undefined,
+      captionsOff: !!s.captionsOff,
+      captionStyle: s.captionStyle || undefined,
+    }));
+  } else {
+    chosen = job.candidates.filter((c) => segmentIds.includes(c.id));
+  }
   if (chosen.length === 0) throw new Error("No segments selected.");
 
   writeJson(path.join(job.tmp, "approved_segments.json"), {
@@ -328,6 +352,9 @@ async function runPhase2(job, { segmentIds, style, platform }) {
       hook_line1: c.hook_line1,
       hook_line2: c.hook_line2 || "",
       score: c.score,
+      ...(c.captions ? { captions: c.captions } : {}),
+      ...(c.captionsOff ? { captionsOff: true } : {}),
+      ...(c.captionStyle ? { captionStyle: c.captionStyle } : {}),
     })),
     style: finalStyle,
     platform,
