@@ -72,9 +72,11 @@ app.get("/api/jobs/:id", (req, res) => {
 app.post("/api/jobs/:id/select", (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).json({ error: "job not found" });
-  const { segmentIds } = req.body || {};
-  if (!Array.isArray(segmentIds) || segmentIds.length === 0) {
-    return res.status(400).json({ error: "segmentIds (non-empty array) is required" });
+  const { segmentIds, segments } = req.body || {};
+  const hasIds = Array.isArray(segmentIds) && segmentIds.length > 0;
+  const hasSegments = Array.isArray(segments) && segments.length > 0;
+  if (!hasIds && !hasSegments) {
+    return res.status(400).json({ error: "segmentIds or segments (non-empty array) is required" });
   }
   try {
     selectAndRender(job, req.body);
@@ -104,6 +106,30 @@ app.get("/api/jobs/:id/events", (req, res) => {
     clearInterval(ping);
     job.emitter.off("event", onEvent);
   });
+});
+
+// Serve the downloaded source video for the in-browser clip editor.
+// sendFile handles HTTP range requests, so <video> scrubbing/seeking works.
+app.get("/api/jobs/:id/input", (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).end();
+  const file = path.join(job.tmp, "input.mp4");
+  if (!fs.existsSync(file)) return res.status(404).end();
+  res.sendFile(file);
+});
+
+// Auto-transcribed captions (word tokens) for the clip editor to edit.
+app.get("/api/jobs/:id/captions", (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).end();
+  const file = path.join(job.tmp, "transcript.json");
+  if (!fs.existsSync(file)) return res.json({ captions: [] });
+  try {
+    const t = JSON.parse(fs.readFileSync(file, "utf-8"));
+    res.json({ captions: t.captions || [] });
+  } catch {
+    res.json({ captions: [] });
+  }
 });
 
 // Serve a rendered/exported short.
