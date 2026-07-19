@@ -5,6 +5,7 @@ description = "Python pipeline for the shorts editor: URL fetch, Whisper transcr
 requires-python = ">=3.12"
 dependencies = [
     "faster-whisper>=1.2.1",
+    "indic-transliteration>=2.3.82",
     "mediapipe>=0.10.35",
     # numpy kept loose on purpose: mlx-whisper -> numba caps numpy below ~2.2, so a hard
     # numpy>=2.5 pin forces numba down to an ancient build that won't compile on Python 3.13.
@@ -20,6 +21,14 @@ mac = [
     "mlx-whisper>=0.4.0 ; sys_platform == 'darwin' and platform_machine == 'arm64'",
     # Force a modern numba/llvmlite (mlx-whisper -> numba); old ones don't build on Python 3.13.
     "numba>=0.60 ; sys_platform == 'darwin' and platform_machine == 'arm64'",
+]
+# Direct Telugu -> Tenglish transcription via a HuggingFace fine-tune (torch + transformers).
+# Its output is already romanized, so English loanwords stay correct ("super", not "supar").
+# Heavy (pulls in PyTorch); opt-in only. Install with:  uv sync --extra romanized
+romanized = [
+    "torch>=2.2",
+    "transformers>=4.44",
+    "accelerate>=0.30",
 ]
 
 [tool.uv]

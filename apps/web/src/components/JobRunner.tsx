@@ -203,6 +203,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
             <select value={backend} onChange={(e) => setBackend(e.target.value)}>
               <option value="faster-whisper">faster-whisper (CPU)</option>
               <option value="mlx">mlx (Apple GPU)</option>
+              <option value="hf">Tenglish model (HF · needs extra)</option>
             </select>
           </div>
           <div className="field" style={{ maxWidth: 150 }}>

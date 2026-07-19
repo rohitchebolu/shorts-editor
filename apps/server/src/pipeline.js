@@ -216,7 +216,7 @@ function fail(job, e) {
 
 // ---- Phase 1: fetch -> transcribe -> detect -> score -------------------------
 
-export function startJob({ url, model = "small", backend = "faster-whisper", maxHeight = 1080, mode = "ai" }) {
+export function startJob({ url, model = "small", backend = "faster-whisper", maxHeight = 1080, mode = "ai", language = "te" }) {
   const id = newId();
   const tmp = path.join(JOBS_DIR, id);
   fs.mkdirSync(path.join(tmp, "clips"), { recursive: true });
@@ -227,7 +227,7 @@ export function startJob({ url, model = "small", backend = "faster-whisper", max
     id,
     url,
     createdAt: Date.now(),
-    options: { model, backend, maxHeight, mode },
+    options: { model, backend, maxHeight, mode, language },
     status: "running",
     phase: 1,
     stage: null,
@@ -266,7 +266,9 @@ async function runPhase1(job) {
 
   await stage(job, "transcribe", async () => {
     const args = [input, "--output", path.join(job.tmp, "transcript.json"), "--model", job.options.model];
-    if (job.options.backend === "mlx") args.push("--backend", "mlx");
+    if (job.options.language) args.push("--language", job.options.language);
+    if (job.options.backend && job.options.backend !== "faster-whisper")
+      args.push("--backend", job.options.backend);
     await py(job, "transcribe.py", args, env);
     const t = readJson(path.join(job.tmp, "transcript.json"));
     job.transcript = { language: t.language, word_count: t.word_count, duration: t.duration };

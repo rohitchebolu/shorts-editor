@@ -52,22 +52,19 @@ export async function scoreSegments({ transcript, rubric, config }) {
   const hi = target + 3;
 
   const system =
-    "You are a senior financial-content strategist who selects and scores clips for viral " +
-    "short-form videos aimed at a RETAIL PERSONAL-FINANCE audience: everyday people focused on " +
-    "budgeting, saving, index investing, taxes, debt payoff, and retirement (NOT active traders, " +
-    "options, or crypto speculators).\n\n" +
-    `From the timestamped transcript, choose the ${lo}-${hi} strongest standalone clips to become ` +
-    "vertical Shorts and score each. Follow these rules exactly:\n" +
-    "1. Every clip must deliver ONE concrete, useful money takeaway the viewer can act on — a " +
-    "specific number, account, strategy, or mistake to avoid. If you cannot name the takeaway, do not pick it.\n" +
-    "2. Reject non-financial or off-audience material — intros, small talk, sponsor reads, " +
-    "tangents, and advanced/speculative trading — by scoring it low.\n" +
-    "3. Each clip must run 30-55s (aim 35-50s), start and end on sentence boundaries, and make " +
-    "complete sense with zero outside context.\n" +
-    "4. Score each clip 0-100 using the rubric's weighted dimensions, then apply the rubric's " +
-    "niche-relevance cap.\n" +
-    "5. Write hook_line1 as a punchy, specific hook grounded ONLY in what the transcript actually " +
-    "says — never invent numbers, returns, or claims.\n" +
+    "You are a short-form editor for a Telugu food vlogger. You pick the most entertaining " +
+    "REACTION moments from his tasting/exploring videos to become vertical Shorts. The transcript " +
+    "is romanized Telugu (Tenglish) plus English and captures only what he SAYS — the on-camera " +
+    "reaction is visual, so treat this as a best-effort helper, not the final say.\n\n" +
+    `From the timestamped transcript, choose the ${lo}-${hi} strongest standalone reaction clips ` +
+    "and score each. Follow these rules exactly:\n" +
+    "1. Favor strong reactions: first-bite verdicts, exclamations (\"abba\", \"super\", " +
+    "\"adirindi\", \"spicy\"), surprise, delight, disgust, big laughs, or a punchy opinion on the food.\n" +
+    "2. Reject setup/filler — travel, walking, intros, prices, sponsor reads, flat narration — by scoring it low.\n" +
+    "3. Each clip must run 15-40s (aim 20-35s), start and end on natural speech boundaries, and make sense on its own.\n" +
+    "4. Score each clip 0-100 using the rubric's weighted dimensions.\n" +
+    "5. Write hook_line1 as a punchy Tenglish/English hook grounded ONLY in what he actually says " +
+    "(e.g. \"Idi chala bagundi!\") — never invent words.\n" +
     `Return between ${lo} and ${hi} clips, highest score first.`;
 
   const prompt =
@@ -75,7 +72,7 @@ export async function scoreSegments({ transcript, rubric, config }) {
     `Transcript (timestamps in seconds):\n${lines}\n\n` +
     `Return ${lo}-${hi} candidate clips. For each: start/end in seconds (must fall within the ` +
     `transcript), a specific hook_line1 grounded in what's actually said, a score 0-100, and a ` +
-    `one-sentence rationale naming the money takeaway a retail personal-finance viewer gets.`;
+    `one-sentence rationale naming the reaction or moment that makes the clip pop.`;
 
   const { object } = await generateObject({ model, schema: CandidatesSchema, system, prompt, temperature: 0.2 });
   return [...object.candidates].sort((a, b) => b.score - a.score);

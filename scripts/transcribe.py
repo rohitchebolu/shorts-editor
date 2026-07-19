@@ -36,10 +36,36 @@ Output JSON:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 import time
+import unicodedata
+
+# Optional Telugu -> Latin romanization for Tenglish captions. Pure-Python (no torch);
+# if the package is missing we silently leave text in Telugu script.
+try:
+    from indic_transliteration import sanscript as _sanscript
+    from indic_transliteration.sanscript import transliterate as _translit
+    _HAS_XLIT = True
+except Exception:
+    _HAS_XLIT = False
+
+
+def romanize_te(text):
+    """Telugu script -> casual romanized Telugu (Tenglish). Non-Telugu characters
+    (spaces, English words, punctuation) pass through unchanged, so per-word caption
+    timings are preserved when callers romanize each token."""
+    if not _HAS_XLIT or not text:
+        return text
+    s = _translit(text, _sanscript.TELUGU, _sanscript.ITRANS)
+    s = re.sub(r"M([pbm])", r"m\1", s)  # anusvara: 'm' before labials, else 'n'
+    s = s.replace("M", "n").replace("~N", "n").replace("~n", "n")
+    s = re.sub(r"\.([nmh])", r"\1", s)
+    s = s.replace("H", "h")
+    s = "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c)).lower()
+    return s
 
 
 def extract_audio(video_path, audio_path):
@@ -55,7 +81,7 @@ def extract_audio(video_path, audio_path):
         sys.exit(1)
 
 
-def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="auto"):
+def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="auto", language=None):
     """Run faster-whisper transcription with word-level timestamps."""
     from faster_whisper import WhisperModel
 
@@ -75,6 +101,7 @@ def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="a
 
     segments_iter, info = model.transcribe(
         audio_path,
+        language=language,
         beam_size=5,
         word_timestamps=True,
         vad_filter=True,
@@ -128,7 +155,7 @@ MLX_MODEL_MAP = {
 }
 
 
-def transcribe_mlx(audio_path, model="large-v3"):
+def transcribe_mlx(audio_path, model="large-v3", language=None):
     """Transcribe on Apple Silicon via MLX (GPU / Neural Engine) — fast large-v3.
 
     Returns the same (segments, captions, info, device, compute_type) shape as
@@ -143,6 +170,7 @@ def transcribe_mlx(audio_path, model="large-v3"):
         audio_path,
         path_or_hf_repo=repo,
         word_timestamps=True,
+        language=language,
     )
 
     segments = []
@@ -177,6 +205,71 @@ def transcribe_mlx(audio_path, model="large-v3"):
     return segments, captions, info, "mlx", "float16"
 
 
+def transcribe_hf(audio_path, model="large-v3", language="english"):
+    """Transcribe via a HuggingFace transformers Whisper checkpoint that outputs romanized
+    text directly (e.g. a Telugu->Tenglish fine-tune, so English loanwords stay correct).
+
+    Requires the 'romanized' extra (torch + transformers): uv sync --extra romanized.
+    Returns the same (segments, captions, info, device, compute_type) shape as the others.
+    """
+    import torch
+    from types import SimpleNamespace
+    from transformers import AutoModelForSpeechSeq2Seq, AutoProcessor, pipeline
+
+    repo = model if "/" in model else "jayasuryajsk/whisper-large-v3-Telugu-Romanized"
+
+    if torch.cuda.is_available():
+        device, dtype, cname = "cuda", torch.float16, "float16"
+    elif getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
+        device, dtype, cname = "mps", torch.float16, "float16"
+    else:
+        device, dtype, cname = "cpu", torch.float32, "float32"
+
+    asr = AutoModelForSpeechSeq2Seq.from_pretrained(repo, torch_dtype=dtype)
+    asr.to(device)
+    proc = AutoProcessor.from_pretrained(repo)
+    pipe = pipeline(
+        "automatic-speech-recognition",
+        model=asr,
+        tokenizer=proc.tokenizer,
+        feature_extractor=proc.feature_extractor,
+        chunk_length_s=30,
+        batch_size=16,
+        return_timestamps="word",
+        torch_dtype=dtype,
+        device=device,
+    )
+    out = pipe(audio_path, generate_kwargs={"language": language})
+
+    words = []
+    captions = []
+    for ch in out.get("chunks", []):
+        ts = ch.get("timestamp") or (None, None)
+        start, end = ts[0], ts[1]
+        if start is None:
+            continue
+        if end is None:
+            end = start
+        raw = ch.get("text", "")
+        words.append({"word": raw.strip(), "start": round(float(start), 3), "end": round(float(end), 3)})
+        captions.append({"text": raw, "startMs": int(float(start) * 1000), "endMs": int(float(end) * 1000)})
+
+    # Group words into segments on pauses (>0.8s) or length, so the AI scorer sees
+    # timestamped segments (snap/captions use the flat word list either way).
+    segments = []
+    cur = None
+    for w in words:
+        if cur is None or (w["start"] - cur["end"]) > 0.8 or len(cur["words"]) >= 14:
+            cur = {"start": w["start"], "end": w["end"], "text": "", "words": []}
+            segments.append(cur)
+        cur["words"].append(w)
+        cur["end"] = w["end"]
+        cur["text"] = (cur["text"] + " " + w["word"]).strip()
+
+    info = SimpleNamespace(language="te", language_probability=1.0)
+    return segments, captions, info, device, cname
+
+
 def main():
     parser = argparse.ArgumentParser(description="Transcribe video with faster-whisper")
     parser.add_argument("input", help="Input video or audio file")
@@ -189,10 +282,15 @@ def main():
                         choices=["auto", "float16", "int8", "float32"],
                         help="Compute type (default: auto)")
     parser.add_argument("--backend", default="faster-whisper",
-                        choices=["faster-whisper", "mlx"],
-                        help="Transcription backend. 'mlx' uses the Apple Silicon "
-                             "GPU/Neural Engine (fast large-v3; needs mlx-whisper). "
-                             "Default: faster-whisper.")
+                        choices=["faster-whisper", "mlx", "hf"],
+                        help="Transcription backend. 'mlx' = Apple Silicon GPU (needs mlx-whisper). "
+                             "'hf' = a HuggingFace fine-tune that outputs romanized Tenglish directly, "
+                             "keeping English loanwords correct (needs the 'romanized' extra: "
+                             "torch+transformers). Default: faster-whisper.")
+    parser.add_argument("--language", default=None,
+                        help="Force a language code (e.g. 'te' for Telugu). Default: auto-detect.")
+    parser.add_argument("--romanize", action="store_true",
+                        help="Romanize the transcript to Latin (Tenglish). Auto-enabled for Telugu.")
 
     args = parser.parse_args()
 
@@ -222,15 +320,30 @@ def main():
     try:
         if args.backend == "mlx":
             segments, captions, info, actual_device, actual_compute = transcribe_mlx(
+                audio_path, args.model, args.language
+            )
+        elif args.backend == "hf":
+            segments, captions, info, actual_device, actual_compute = transcribe_hf(
                 audio_path, args.model
             )
         else:
             segments, captions, info, actual_device, actual_compute = transcribe(
-                audio_path, args.model, args.device, args.compute_type
+                audio_path, args.model, args.device, args.compute_type, args.language
             )
     finally:
         if tmp_audio and os.path.exists(tmp_audio):
             os.unlink(tmp_audio)
+
+    # Romanize to Tenglish when the language is Telugu (or --romanize) — but NOT for the 'hf'
+    # backend, whose model already outputs romanized text (keeps English loanwords correct).
+    lang_code = args.language or getattr(info, "language", None)
+    if args.backend != "hf" and (args.romanize or lang_code == "te"):
+        for c in captions:
+            c["text"] = romanize_te(c["text"])
+        for seg in segments:
+            seg["text"] = romanize_te(seg["text"])
+            for w in seg.get("words", []):
+                w["word"] = romanize_te(w["word"])
 
     elapsed = time.time() - start_time
 
