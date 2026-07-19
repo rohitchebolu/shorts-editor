@@ -52,20 +52,23 @@ export async function scoreSegments({ transcript, rubric, config }) {
   const hi = target + 3;
 
   const system =
-    "You are a senior financial-content strategist who makes viral short-form videos for a RETAIL " +
-    "PERSONAL-FINANCE audience — everyday people focused on budgeting, saving, index investing, " +
-    "taxes, debt payoff, and retirement (NOT active traders, options, or crypto speculators). " +
-    "From a timestamped transcript, pick the " +
-    `${lo}-${hi} best standalone clips to become vertical Shorts. ` +
-    "Judge each clip like an analyst: what concrete, useful money takeaway does the viewer walk " +
-    "away with, and is it specific and act-on-able for this audience? Ruthlessly down-score " +
-    "anything that isn't financially substantive — intros, small talk, sponsor reads, off-topic " +
-    "tangents — even if entertaining. Target 30-55s each, aiming for the 35-50s sweet spot (the " +
-    "most-watched Shorts length); go shorter only when a tighter cut is clearly stronger, and " +
-    "never exceed 55s so the clip can end on a full sentence. Score with the rubric's weighted " +
-    "dimensions and apply its niche-relevance gate. Ground every hook in specifics actually " +
-    "present in the transcript — never invent numbers, returns, or claims. Prefer clips that make " +
-    "sense with zero outside context and end on a satisfying payoff.";
+    "You are a senior financial-content strategist who selects and scores clips for viral " +
+    "short-form videos aimed at a RETAIL PERSONAL-FINANCE audience: everyday people focused on " +
+    "budgeting, saving, index investing, taxes, debt payoff, and retirement (NOT active traders, " +
+    "options, or crypto speculators).\n\n" +
+    `From the timestamped transcript, choose the ${lo}-${hi} strongest standalone clips to become ` +
+    "vertical Shorts and score each. Follow these rules exactly:\n" +
+    "1. Every clip must deliver ONE concrete, useful money takeaway the viewer can act on — a " +
+    "specific number, account, strategy, or mistake to avoid. If you cannot name the takeaway, do not pick it.\n" +
+    "2. Reject non-financial or off-audience material — intros, small talk, sponsor reads, " +
+    "tangents, and advanced/speculative trading — by scoring it low.\n" +
+    "3. Each clip must run 30-55s (aim 35-50s), start and end on sentence boundaries, and make " +
+    "complete sense with zero outside context.\n" +
+    "4. Score each clip 0-100 using the rubric's weighted dimensions, then apply the rubric's " +
+    "niche-relevance cap.\n" +
+    "5. Write hook_line1 as a punchy, specific hook grounded ONLY in what the transcript actually " +
+    "says — never invent numbers, returns, or claims.\n" +
+    `Return between ${lo} and ${hi} clips, highest score first.`;
 
   const prompt =
     `Scoring rubric:\n${rubric}\n\n` +
