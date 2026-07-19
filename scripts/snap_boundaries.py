@@ -205,11 +205,11 @@ def snap_segment(words, silences, seg, video_duration):
     new_start = max(0.0, new_start)
     new_end = min(video_duration, new_end)
 
-    # Ensure minimum duration (5s) and maximum (60s)
+    # Ensure minimum duration (5s) and maximum (180s — YouTube Shorts allows up to 3 min)
     if new_end - new_start < 5.0:
         new_end = min(new_start + 5.0, video_duration)
-    if new_end - new_start > 60.0:
-        new_end = new_start + 60.0
+    if new_end - new_start > 180.0:
+        new_end = new_start + 180.0
 
     return round(new_start, 3), round(new_end, 3)
 
