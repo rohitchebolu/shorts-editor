@@ -21,8 +21,8 @@ type Drag =
   | { kind: "trim-end"; id: number };
 
 const MIN_CLIP = 3; // seconds — sub-3s drags are treated as a seek, not a clip
-const SWEET_LO = 30;
-const SWEET_HI = 55;
+const SWEET_LO = 15;
+const SWEET_HI = 40;
 const NEW_LEN = 40; // default length for "add at playhead"
 
 const fmt = (s: number) =>
@@ -286,7 +286,7 @@ export default function ClipEditor({
                   <td className="mono">
                     {fmt(c.start)} → {fmt(c.end)}
                   </td>
-                  <td className={off ? "warn-dur" : ""} title={off ? "outside the 30–55s sweet spot" : ""}>
+                  <td className={off ? "warn-dur" : ""} title={off ? "outside the 15–40s sweet spot" : ""}>
                     {Math.round(d)}s
                   </td>
                   <td>
