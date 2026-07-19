@@ -1,106 +1,117 @@
-# Segment Scoring Rubric
+# Segment Scoring Rubric — Retail Personal-Finance Shorts
 
-When analyzing a transcript for shortform candidates, score each segment on these 5 dimensions. Each dimension is scored 0-100, then weighted to produce a final score.
+This rubric scores transcript segments for one niche: **short-form videos for a retail
+personal-finance audience** — everyday people focused on budgeting, saving, index investing,
+taxes, debt payoff, and retirement (NOT active traders, options, or crypto speculators). Score
+each segment on the 5 dimensions (0-100 each), combine with the weighted formula, then apply the
+Niche Relevance gate.
 
 ## Dimensions
 
-### 1. Hook Strength (Weight: 0.30)
+### 1. Hook Strength (Weight: 0.25)
 
-The first 3 seconds determine whether a viewer scrolls past or stays. Score based on which hook archetype is present:
+The first 3 seconds decide whether a money-focused viewer keeps watching. Score by hook archetype:
 
 | Archetype | Example | Score Range |
 |-----------|---------|-------------|
-| Bold/Contrarian | "Everything you know about X is wrong" | 80-100 |
-| Curiosity Gap | "There's one thing nobody tells you about..." | 75-95 |
-| Value Promise | "Here's the exact framework I used to..." | 70-90 |
-| Pattern Interrupt | "Wait, let me show you something weird" | 70-90 |
-| Payoff Preview | "By the end of this you'll know how to..." | 65-85 |
-| Mid-Action Start | [Starts mid-sentence with energy] | 60-80 |
-| Hidden Knowledge | "The secret that [authority figures] don't share" | 60-80 |
-| Weak/Generic | "So today I want to talk about..." | 10-40 |
+| Contrarian money take | "Stop maxing your 401(k) before you do this" | 80-100 |
+| Specific number / goal | "How $200 a month becomes $1M by retirement" | 80-100 |
+| Hidden cost / myth-bust | "The fee quietly eating 30% of your returns" | 75-95 |
+| Costly mistake | "The tax mistake that costs new investors thousands" | 70-90 |
+| Insider framing | "What your bank hopes you never figure out" | 70-90 |
+| Simple rule / framework | "The 50/30/20 budget in 40 seconds" | 65-85 |
+| Weak / generic | "So let's talk a bit about money..." | 10-40 |
 
-**Boosters** (+5-10 each):
-- Contains a specific number ("3 steps", "$50K", "in 30 days")
-- Names a recognizable entity (person, company, tool)
-- Implies personal experience ("I tested", "I spent 6 months")
+**Boosters** (+5-10 each): a concrete dollar figure or percentage; a named vehicle (Roth IRA,
+index fund, HYSA, 401k); a specific age or time horizon; lived experience ("I paid off $40k").
 
-### 2. Standalone Coherence (Weight: 0.25)
+### 2. Financial Audience Value (Weight: 0.30) — the lead dimension
 
-The segment must make complete sense to someone who hasn't seen the rest of the video.
+How useful and act-on-able the takeaway is for a retail personal-finance viewer. Reward clips
+that leave the viewer with something they can DO with their money.
+
+| Content | Score Range |
+|---------|-------------|
+| Specific actionable step/framework (how to budget, which account, exact allocation) | 85-100 |
+| Concrete money insight with numbers (fees, compounding, tax impact) | 75-95 |
+| Myth-bust or costly-mistake warning that includes the fix | 70-90 |
+| Useful mental model (pay yourself first, right-sized emergency fund) | 60-80 |
+| General guidance with a few specifics | 40-60 |
+| Vague platitudes ("just save more", "invest early") with no how | 10-30 |
+
+### 3. Standalone Coherence (Weight: 0.20)
+
+Must make complete sense to someone who hasn't seen the rest of the video.
 
 | Criteria | Score |
 |----------|-------|
-| Complete self-contained narrative arc (setup → development → resolution) | 85-100 |
-| Complete idea with minor context gaps (viewer can infer) | 65-84 |
-| Mostly standalone but references earlier content ("as I said before") | 40-64 |
-| Requires prior context to understand ("so going back to that point") | 10-39 |
+| Complete self-contained arc (setup -> insight -> resolution) | 85-100 |
+| Complete idea with minor gaps a viewer can infer | 65-84 |
+| Mostly standalone but references earlier content | 40-64 |
+| Needs prior context to follow | 10-39 |
 | Fragment — starts or ends mid-thought | 0-9 |
 
-**Red flags** (automatic low score):
-- "As I mentioned earlier..."
-- "Going back to what we discussed..."
-- Pronouns without clear referents ("he said that...")
-- Cuts off mid-sentence at the end
+**Red flags** (auto low): "as I mentioned earlier", pronouns with no referent, cuts off mid-sentence.
 
-### 3. Emotional Intensity (Weight: 0.20)
+### 4. Emotional Pull (Weight: 0.15)
 
-Strong emotions drive shares and comments.
+Money emotions drive shares and saves.
 
 | Signal | Score Range |
 |--------|-------------|
-| Passionate rant / strong opinion with conviction | 80-100 |
-| Surprise reveal / unexpected twist | 75-95 |
-| Genuine humor / laughter | 70-90 |
-| Personal vulnerability / honest failure story | 70-90 |
-| Enthusiastic explanation of something fascinating | 60-80 |
-| Calm but insightful observation | 40-60 |
-| Monotone recitation of facts | 10-30 |
-
-### 4. Value Density (Weight: 0.15)
-
-How much actionable content is packed per second.
-
-| Content Type | Score Range |
-|--------------|-------------|
-| Step-by-step process / exact method | 80-100 |
-| Framework / mental model with examples | 75-95 |
-| Specific data points / research findings | 70-90 |
-| Counter-intuitive insight with explanation | 65-85 |
-| General advice with some specifics | 40-60 |
-| Vague platitudes ("work harder", "be consistent") | 10-30 |
-
-**Duration adjustment**: Penalize segments where >30% of time is filler, repetition, or tangents.
+| Conviction against conventional wisdom | 80-100 |
+| "Aha" on a surprising number or fact | 75-95 |
+| Relief / hope ("you can actually retire on this") | 70-90 |
+| Fear of falling behind / costly-mistake dread | 65-85 |
+| Calm-but-useful explanation | 40-60 |
+| Monotone recitation | 10-30 |
 
 ### 5. Payoff Quality (Weight: 0.10)
 
-How satisfying the ending feels.
-
-| Ending Type | Score Range |
-|-------------|-------------|
-| Punchline / satisfying reveal | 85-100 |
-| Clear call-to-action with specific next step | 75-90 |
+| Ending | Score Range |
+|--------|-------------|
+| Punchline / satisfying reveal (the number, the answer) | 85-100 |
+| Clear next step the viewer can take | 75-90 |
 | Complete thought — natural stopping point | 65-80 |
-| Fades into next topic (can be cut cleanly) | 40-60 |
-| Cuts off mid-thought / no resolution | 10-30 |
+| Fades into next topic | 40-60 |
+| Cuts off mid-thought | 10-30 |
+
+## Niche Relevance Gate
+
+After the weighted score, judge how on-topic the clip is for this audience and cap accordingly:
+
+- **On-topic** (budgeting, saving, investing, index funds, taxes, debt, income, retirement): no cap.
+- **Tangential** (general career, business, or mindset with a money angle): cap final score at **65**.
+- **Off-topic or off-audience** (not about money; or advanced/speculative — day-trading, options,
+  leverage, meme coins): cap final score at **40**.
+
+This keeps output in the personal-finance niche even when the source video wanders.
 
 ## Scoring Formula
 
 ```
-final_score = (hook * 0.30) + (coherence * 0.25) + (emotion * 0.20) + (value * 0.15) + (payoff * 0.10)
+weighted = (hook*0.25) + (financial_value*0.30) + (coherence*0.20) + (emotion*0.15) + (payoff*0.10)
+final    = min(weighted, niche_relevance_cap)
 ```
 
 ## Candidate Selection Guidelines
 
-1. **Target 8-12 candidates** from a typical 30-60 minute video
-2. **Duration sweet spot**: 35-50 seconds — the most-watched Shorts length. Prioritize capturing a complete, self-contained moment over brevity. Go shorter (min 30s) only when a tighter cut is clearly stronger. Stay ≤55s so the clip ends on a full sentence; 60s is the hard cap (clips are force-cut there, possibly mid-word).
-3. **Minimum score threshold**: 60 (below this, skip the segment)
-4. **Diversity**: Don't select 5 segments about the same subtopic
-5. **Spacing**: Prefer segments at least 2 minutes apart in source
-6. **Natural boundaries**: Align start/end with sentence boundaries, not mid-word
+1. **Count** scales with video length (the system requests a specific number per run).
+2. **Duration sweet spot**: 35-50 seconds — the most-watched Shorts length. Prioritize a complete,
+   self-contained moment over brevity. Go shorter (min 30s) only when a tighter cut is clearly
+   stronger. Stay <=55s so the clip ends on a full sentence; 60s is the hard cap (clips are
+   force-cut there, possibly mid-word).
+3. **Minimum score**: don't propose clips below 60 after the formula (before the niche cap).
+4. **Diversity**: spread across personal-finance subtopics (saving, investing, taxes, retirement) —
+   don't return five clips on the same tip.
+5. **Spacing**: prefer segments at least 2 minutes apart in the source.
+6. **Natural boundaries**: align start/end with sentence boundaries, not mid-word.
 
 ## Hook Text Generation
 
 For each selected segment, write a hook overlay:
-- **Line 1**: 4-8 words, the attention-grabbing statement (white, large)
-- **Line 2**: 3-6 words, context or subtitle (cyan, smaller)
-- Lines should NOT duplicate the first spoken words — they complement the audio
+- **Line 1**: 4-8 words — the money hook (a specific number, benefit, or mistake).
+- **Line 2**: 3-6 words — context or the payoff tease.
+- **Ground every number and claim in what's actually said in the clip — never invent figures,
+  returns, or facts.**
+- Lines should complement the spoken audio, not duplicate the first spoken words.
