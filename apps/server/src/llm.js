@@ -52,20 +52,29 @@ export async function scoreSegments({ transcript, rubric, config }) {
   const hi = target + 3;
 
   const system =
-    "You are an expert short-form video editor. From a timestamped transcript, pick the " +
-    `${lo}-${hi} best standalone clips to become vertical Shorts. Target 30-55s each, aiming for the ` +
-    "35-50s sweet spot (the most-watched Shorts length); go shorter only when a tighter cut is " +
-    "clearly stronger, and never exceed 55s so the clip can end on a full sentence. Judge each " +
-    "on hook strength, standalone coherence, emotional intensity, value density, and payoff. " +
-    "Prefer clips that make sense with zero outside context and end on a satisfying payoff.";
+    "You are a senior financial-content strategist who makes viral short-form videos for a RETAIL " +
+    "PERSONAL-FINANCE audience — everyday people focused on budgeting, saving, index investing, " +
+    "taxes, debt payoff, and retirement (NOT active traders, options, or crypto speculators). " +
+    "From a timestamped transcript, pick the " +
+    `${lo}-${hi} best standalone clips to become vertical Shorts. ` +
+    "Judge each clip like an analyst: what concrete, useful money takeaway does the viewer walk " +
+    "away with, and is it specific and act-on-able for this audience? Ruthlessly down-score " +
+    "anything that isn't financially substantive — intros, small talk, sponsor reads, off-topic " +
+    "tangents — even if entertaining. Target 30-55s each, aiming for the 35-50s sweet spot (the " +
+    "most-watched Shorts length); go shorter only when a tighter cut is clearly stronger, and " +
+    "never exceed 55s so the clip can end on a full sentence. Score with the rubric's weighted " +
+    "dimensions and apply its niche-relevance gate. Ground every hook in specifics actually " +
+    "present in the transcript — never invent numbers, returns, or claims. Prefer clips that make " +
+    "sense with zero outside context and end on a satisfying payoff.";
 
   const prompt =
     `Scoring rubric:\n${rubric}\n\n` +
     `Transcript (timestamps in seconds):\n${lines}\n\n` +
     `Return ${lo}-${hi} candidate clips. For each: start/end in seconds (must fall within the ` +
-    `transcript), a specific and concrete hook_line1, a score 0-100, and a one-sentence rationale.`;
+    `transcript), a specific hook_line1 grounded in what's actually said, a score 0-100, and a ` +
+    `one-sentence rationale naming the money takeaway a retail personal-finance viewer gets.`;
 
-  const { object } = await generateObject({ model, schema: CandidatesSchema, system, prompt });
+  const { object } = await generateObject({ model, schema: CandidatesSchema, system, prompt, temperature: 0.2 });
   return [...object.candidates].sort((a, b) => b.score - a.score);
 }
 
