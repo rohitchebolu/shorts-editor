@@ -110,7 +110,17 @@ export function listJobs() {
 export function rerunJob(id) {
   const j = jobs.get(id);
   if (!j) return null;
-  return startJob({ url: j.url, ...(j.options || {}) });
+  if (j.status === "running") return j;
+  // Resume in place: reuse the same tmp dir and any completed Phase-1 artifacts
+  // (source, transcript, content type, candidates). runPhase1 skips every stage
+  // whose output already exists, so we don't re-download or re-transcribe.
+  j.phase = 1;
+  j.status = "running";
+  j.stage = null;
+  j.error = null;
+  j.events = [];
+  runPhase1(j).catch((e) => fail(j, e));
+  return j;
 }
 
 function emit(job, ev) {
@@ -251,6 +261,7 @@ async function runPhase1(job) {
   const input = path.join(job.tmp, "input.mp4");
 
   await stage(job, "fetch", async () => {
+    if (fs.existsSync(input)) return; // resume: source already downloaded
     if (/^https?:\/\//i.test(job.url)) {
       await py(job, "ytdlp_fetch.py", [
         job.url,
@@ -265,21 +276,28 @@ async function runPhase1(job) {
   });
 
   await stage(job, "transcribe", async () => {
-    const args = [input, "--output", path.join(job.tmp, "transcript.json"), "--model", job.options.model];
-    if (job.options.language) args.push("--language", job.options.language);
-    if (job.options.backend && job.options.backend !== "faster-whisper")
-      args.push("--backend", job.options.backend);
-    await py(job, "transcribe.py", args, env);
-    const t = readJson(path.join(job.tmp, "transcript.json"));
+    const tPath = path.join(job.tmp, "transcript.json");
+    if (!fs.existsSync(tPath)) {
+      const args = [input, "--output", tPath, "--model", job.options.model];
+      if (job.options.language) args.push("--language", job.options.language);
+      if (job.options.backend && job.options.backend !== "faster-whisper")
+        args.push("--backend", job.options.backend);
+      await py(job, "transcribe.py", args, env);
+    }
+    const t = readJson(tPath);
     job.transcript = { language: t.language, word_count: t.word_count, duration: t.duration };
     emit(job, { type: "data", key: "transcript", value: job.transcript });
-    // Cleaned captions for rendering (Claude used to clean filler; we copy as-is for now).
-    fs.copyFileSync(path.join(job.tmp, "transcript.json"), path.join(job.tmp, "transcript_cleaned.json"));
+    // Cleaned captions for rendering (copied as-is).
+    const cleaned = path.join(job.tmp, "transcript_cleaned.json");
+    if (!fs.existsSync(cleaned)) fs.copyFileSync(tPath, cleaned);
   });
 
   await stage(job, "detect", async () => {
-    await py(job, "detect_content.py", [input, "--output", path.join(job.tmp, "content_type.json")], env);
-    job.contentType = readJsonSafe(path.join(job.tmp, "content_type.json"));
+    const cPath = path.join(job.tmp, "content_type.json");
+    if (!fs.existsSync(cPath)) {
+      await py(job, "detect_content.py", [input, "--output", cPath], env);
+    }
+    job.contentType = readJsonSafe(cPath);
     emit(job, { type: "data", key: "contentType", value: job.contentType });
   });
 
@@ -287,6 +305,10 @@ async function runPhase1(job) {
   // entirely (no provider/key required) and opens an empty editor.
   if (job.options.mode !== "manual") {
     await stage(job, "score", async () => {
+      if (job.candidates && job.candidates.length > 0) {
+        emit(job, { type: "data", key: "candidates", value: job.candidates }); // resume: reuse
+        return;
+      }
       const cfg = getSecret();
       if (!cfg.provider || !cfg.apiKey) throw new Error("No LLM provider configured — set one in Settings.");
       const transcript = readJson(path.join(job.tmp, "transcript.json"));
@@ -326,6 +348,17 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
   const contentType = job.contentType?.content_type || "talking-head";
   const finalStyle = style || recommendStyle(contentType);
 
+  // Start each render clean so stale clips/outputs from a previous run don't linger.
+  for (const sub of ["clips", "render", "out"]) {
+    const d = path.join(job.tmp, sub);
+    try {
+      if (fs.existsSync(d))
+        for (const f of fs.readdirSync(d)) fs.rmSync(path.join(d, f), { force: true, recursive: true });
+    } catch {
+      /* best-effort */
+    }
+  }
+
   // Editor-provided segments (edited boundaries/titles/captions) take precedence;
   // otherwise fall back to id-based selection of LLM candidates.
   let chosen;
@@ -340,6 +373,8 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
       captions: Array.isArray(s.captions) ? s.captions : undefined,
       captionsOff: !!s.captionsOff,
       captionStyle: s.captionStyle || undefined,
+      layout: s.layout || undefined,
+      captionY: typeof s.captionY === "number" ? s.captionY : undefined,
     }));
   } else {
     chosen = job.candidates.filter((c) => segmentIds.includes(c.id));
@@ -357,6 +392,8 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
       ...(c.captions ? { captions: c.captions } : {}),
       ...(c.captionsOff ? { captionsOff: true } : {}),
       ...(c.captionStyle ? { captionStyle: c.captionStyle } : {}),
+      ...(c.layout ? { layout: c.layout } : {}),
+      ...(typeof c.captionY === "number" ? { captionY: c.captionY } : {}),
     })),
     style: finalStyle,
     platform,

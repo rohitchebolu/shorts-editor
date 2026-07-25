@@ -27,6 +27,9 @@ export type CropKeyframe = z.infer<typeof CropKeyframeSchema>;
 export const CaptionStyle = z.enum(["bold", "bounce", "clean"]);
 export type CaptionStyleType = z.infer<typeof CaptionStyle>;
 
+export const LayoutMode = z.enum(["fill", "fit"]);
+export type LayoutModeType = z.infer<typeof LayoutMode>;
+
 export const ShortVideoPropsSchema = z.object({
   clipSrc: z.string(),
   sourceWidth: z.number(),
@@ -35,6 +38,8 @@ export const ShortVideoPropsSchema = z.object({
   cropKeyframes: z.array(CropKeyframeSchema).optional().default([]),
   captions: z.array(CaptionSchema),
   captionStyle: CaptionStyle,
+  layout: LayoutMode.optional().default("fill"),
+  captionY: z.number().optional().default(0.8),
   hookLine1: z.string().optional().default(""),
   hookLine2: z.string().optional().default(""),
   showProgressBar: z.boolean().optional().default(true),
