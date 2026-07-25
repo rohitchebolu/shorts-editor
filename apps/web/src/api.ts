@@ -91,6 +91,10 @@ export const inputUrl = (id: string) => `/api/jobs/${id}/input`;
 export const getCaptions = (id: string) =>
   fetch(`/api/jobs/${id}/captions`).then((r) => json<{ captions: Caption[] }>(r));
 
+/** Previously-rendered clip segments for a job (to reopen in the editor). */
+export const getSegments = (id: string) =>
+  fetch(`/api/jobs/${id}/segments`).then((r) => json<{ segments: any[] }>(r));
+
 /** Subscribe to a job's SSE stream. Returns an unsubscribe fn. */
 export function subscribe(id: string, onEvent: (ev: any) => void): () => void {
   const es = new EventSource(`/api/jobs/${id}/events`);

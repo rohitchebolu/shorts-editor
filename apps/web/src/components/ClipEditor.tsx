@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { inputUrl, getCaptions, type Candidate, type Caption, type EditorSegment } from "../api";
+import { inputUrl, getCaptions, getSegments, type Candidate, type Caption, type EditorSegment } from "../api";
 
 // A clip being edited on the timeline. `id` is a local key only.
 // captionText: null = use the auto transcript text; a string = user-edited text.
@@ -47,6 +47,22 @@ const newClip = (start: number, end: number, title = "", subtitle = ""): Clip =>
 
 const clipsFromCandidates = (cands: Candidate[]): Clip[] =>
   cands.map((c) => newClip(c.start, c.end, c.hook_line1 || "", c.hook_line2 || ""));
+
+// Rebuild editor clips from a previous render's saved segments (approved_segments.json),
+// so you can edit/add clips after rendering.
+const clipsFromSaved = (segs: any[]): Clip[] =>
+  segs.map((s) => ({
+    id: ++uid,
+    start: Number(s.start),
+    end: Number(s.end),
+    title: s.hook_line1 || "",
+    subtitle: s.hook_line2 || "",
+    captionsOff: !!s.captionsOff,
+    captionStyle: s.captionStyle || "bold",
+    captionText: Array.isArray(s.captions) ? s.captions.map((c: any) => c.text).join("").trim() : null,
+    layout: s.layout || "fill",
+    captionY: typeof s.captionY === "number" ? s.captionY : 0.8,
+  }));
 
 // Parse "ss", "mm:ss", or "hh:mm:ss" into seconds; null if not a valid time.
 function parseTime(str: string): number | null {
@@ -126,6 +142,19 @@ export default function ClipEditor({
     getCaptions(jobId)
       .then((r) => setAllCaps(r.captions || []))
       .catch(() => setAllCaps([]));
+  }, [jobId]);
+
+  // Restore the clips from a previous render (edit / add clips after rendering).
+  useEffect(() => {
+    getSegments(jobId)
+      .then((r) => {
+        if (r.segments && r.segments.length) {
+          const restored = clipsFromSaved(r.segments);
+          setClips(restored);
+          setSelectedId(restored[0]?.id ?? null);
+        }
+      })
+      .catch(() => {});
   }, [jobId]);
 
   // Seed from AI candidates if they stream in after mount and nothing's drawn yet.
