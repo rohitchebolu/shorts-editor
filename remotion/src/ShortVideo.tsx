@@ -7,10 +7,8 @@ import { ProgressBar } from "./components/ProgressBar";
 import { fontFaceCSS } from "./styles/fonts";
 import type { ShortVideoProps } from "./types";
 
-// In the "fit" (letterbox) layout, the video band's bottom sits this many px above
-// the frame bottom — chosen so captions (by default near the bottom) land on the video.
-const FIT_BAND_BOTTOM = 270;
-// Default vertical center of the caption band as a fraction of the 1920px frame height.
+// The caption band's natural center (matches the caption components' default anchor),
+// as a fraction of the 1920px frame. captionY shifts the band relative to this.
 const CAPTION_Y_DEFAULT = 0.8;
 
 export const ShortVideo: React.FC<ShortVideoProps> = ({
@@ -30,23 +28,25 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
 }) => {
   const hasTitle = !!(hookLine1 || hookLine2);
 
-  // Captions, shifted vertically to the user-chosen position (draggable in the editor).
-  const captionEl = (
+  // Render captions with their band centered at `centerY` (px). captionY is a
+  // fraction of the visible video, so this stays consistent across layouts.
+  const renderCaptions = (centerY: number) => (
     <div
       style={{
         position: "absolute",
         inset: 0,
-        transform: `translateY(${(captionY - CAPTION_Y_DEFAULT) * 1920}px)`,
+        transform: `translateY(${centerY - CAPTION_Y_DEFAULT * 1920}px)`,
       }}
     >
       <Captions captions={captions} style={captionStyle} />
     </div>
   );
 
-  // "fit": whole source frame scaled to width (black bars), title in the top band.
+  // "fit": whole source frame scaled to width, vertically centered (black bars),
+  // title in the black band above, captions over the video.
   if (layout === "fit") {
     const videoH = Math.round((1080 * sourceHeight) / sourceWidth);
-    const bandTop = 1920 - FIT_BAND_BOTTOM - videoH;
+    const bandTop = Math.round((1920 - videoH) / 2); // vertically centered
     return (
       <AbsoluteFill style={{ backgroundColor: "black" }}>
         <style dangerouslySetInnerHTML={{ __html: fontFaceCSS }} />
@@ -55,14 +55,15 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
             position: "absolute",
             left: 0,
             right: 0,
-            bottom: FIT_BAND_BOTTOM,
+            top: bandTop,
             width: 1080,
             height: videoH,
           }}
         >
           {clipSrc && <OffthreadVideo src={clipSrc} style={{ width: "100%", height: "100%" }} />}
         </div>
-        {captionEl}
+        {/* captionY is a fraction of the video band, so captions stay on the video */}
+        {renderCaptions(bandTop + captionY * videoH)}
         {hasTitle && <TitleCard line1={hookLine1 ?? ""} line2={hookLine2 ?? ""} bandTop={bandTop} />}
         {showProgressBar && <ProgressBar durationInSeconds={durationInSeconds} />}
       </AbsoluteFill>
@@ -84,8 +85,8 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
         cropKeyframes={cropKeyframes}
       />
 
-      {/* Word-level captions (position adjustable) */}
-      {captionEl}
+      {/* Word-level captions (position adjustable — fraction of the full frame here) */}
+      {renderCaptions(captionY * 1920)}
 
       {/* Optional title pinned to the top-center, overlaid on the video */}
       {hasTitle && <HookOverlay line1={hookLine1 ?? ""} line2={hookLine2 ?? ""} />}

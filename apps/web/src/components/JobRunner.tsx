@@ -267,6 +267,11 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
       {outputs.length > 0 && (
         <div className="panel">
           <h2>Done — {outputs.length} short{outputs.length === 1 ? "" : "s"}</h2>
+          {jobId && (
+            <button className="ghost" onClick={() => rerun(jobId)} style={{ marginBottom: 12 }}>
+              ✎ Edit / add clips
+            </button>
+          )}
           <div className="outputs">
             {outputs.map((o) => (
               <div key={o.file}>
@@ -315,7 +320,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
                       </button>
                     )}
                     <button className="ghost" onClick={() => rerun(j.id)} disabled={running}>
-                      Re-run
+                      Edit
                     </button>
                   </td>
                 </tr>

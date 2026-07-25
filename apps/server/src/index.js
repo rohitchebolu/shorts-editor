@@ -132,6 +132,20 @@ app.get("/api/jobs/:id/captions", (req, res) => {
   }
 });
 
+// Previously-rendered clip segments for a job (to reopen it in the editor).
+app.get("/api/jobs/:id/segments", (req, res) => {
+  const job = getJob(req.params.id);
+  if (!job) return res.status(404).end();
+  const file = path.join(job.tmp, "approved_segments.json");
+  if (!fs.existsSync(file)) return res.json({ segments: [] });
+  try {
+    const data = JSON.parse(fs.readFileSync(file, "utf-8"));
+    res.json({ segments: data.segments || [] });
+  } catch {
+    res.json({ segments: [] });
+  }
+});
+
 // Serve a rendered/exported short.
 app.get("/api/jobs/:id/file/:name", (req, res) => {
   const job = getJob(req.params.id);
