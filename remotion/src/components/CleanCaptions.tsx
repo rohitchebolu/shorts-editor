@@ -48,6 +48,8 @@ export const CleanCaptions: React.FC<CleanCaptionsProps> = ({ captions }) => {
         display: "flex",
         justifyContent: "center",
         alignItems: "center",
+        flexWrap: "wrap",
+        rowGap: 4,
         opacity,
       }}
     >
