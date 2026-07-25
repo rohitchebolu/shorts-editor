@@ -165,6 +165,8 @@ async function main() {
         cropKeyframes,
         captions: segCaptions,
         captionStyle: seg.captionStyle || style,
+        layout: seg.layout || "fill",
+        captionY: typeof seg.captionY === "number" ? seg.captionY : 0.8,
         hookLine1: seg.hook_line1 || "",
         hookLine2: seg.hook_line2 || "",
         showProgressBar: true,

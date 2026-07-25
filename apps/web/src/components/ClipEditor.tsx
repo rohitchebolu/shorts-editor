@@ -12,6 +12,8 @@ type Clip = {
   captionsOff: boolean;
   captionStyle: string;
   captionText: string | null;
+  layout: string;
+  captionY: number;
 };
 
 type Drag =
@@ -39,10 +41,52 @@ const newClip = (start: number, end: number, title = "", subtitle = ""): Clip =>
   captionsOff: false,
   captionStyle: "bold",
   captionText: null,
+  layout: "fill",
+  captionY: 0.8,
 });
 
 const clipsFromCandidates = (cands: Candidate[]): Clip[] =>
   cands.map((c) => newClip(c.start, c.end, c.hook_line1 || "", c.hook_line2 || ""));
+
+// Parse "ss", "mm:ss", or "hh:mm:ss" into seconds; null if not a valid time.
+function parseTime(str: string): number | null {
+  const s = str.trim();
+  if (!s) return null;
+  const parts = s.split(":");
+  if (parts.length > 3 || parts.some((p) => p.trim() === "" || !/^\d*\.?\d*$/.test(p.trim()))) return null;
+  const n = parts.map((p) => Number(p));
+  if (n.some((x) => Number.isNaN(x) || x < 0)) return null;
+  return n.length === 1 ? n[0] : n.length === 2 ? n[0] * 60 + n[1] : n[0] * 3600 + n[1] * 60 + n[2];
+}
+
+// Editable mm:ss (or hh:mm:ss) time field. Commits on blur/Enter; reverts if invalid.
+function TimeInput({ value, onCommit, title }: { value: number; onCommit: (s: number) => void; title?: string }) {
+  const [text, setText] = useState(() => fmt(value));
+  const [editing, setEditing] = useState(false);
+  useEffect(() => {
+    if (!editing) setText(fmt(value));
+  }, [value, editing]);
+  const commit = () => {
+    setEditing(false);
+    const parsed = parseTime(text);
+    if (parsed == null) setText(fmt(value)); // revert on invalid
+    else onCommit(parsed);
+  };
+  return (
+    <input
+      className="timeinput mono"
+      value={text}
+      title={title}
+      inputMode="numeric"
+      onFocus={() => setEditing(true)}
+      onChange={(e) => setText(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+      }}
+    />
+  );
+}
 
 /**
  * In-browser clip editor. Both modes feed into this: AI mode pre-loads its
@@ -72,8 +116,10 @@ export default function ClipEditor({
   const [allCaps, setAllCaps] = useState<Caption[]>([]);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoWrapRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<Drag | null>(null);
+  const capDragRef = useRef(false);
 
   // Auto-transcribed caption tokens (absolute ms) — the source for caption editing.
   useEffect(() => {
@@ -170,6 +216,11 @@ export default function ClipEditor({
 
   const update = (id: number, patch: Partial<Clip>) =>
     setClips((cs) => cs.map((c) => (c.id === id ? { ...c, ...patch } : c)));
+  // Manual time entry: clamp start below end (min length) and end within the video.
+  const setStart = (c: Clip, s: number) =>
+    update(c.id, { start: Math.max(0, Math.min(s, c.end - MIN_CLIP)) });
+  const setEnd = (c: Clip, s: number) =>
+    update(c.id, { end: Math.max(c.start + MIN_CLIP, dur > 0 ? Math.min(s, dur) : s) });
   const remove = (id: number) => {
     setClips((cs) => cs.filter((c) => c.id !== id));
     setSelectedId((s) => (s === id ? null : s));
@@ -211,6 +262,8 @@ export default function ClipEditor({
           end: c.end,
           title: c.title,
           subtitle: c.subtitle,
+          layout: c.layout,
+          captionY: c.captionY,
           ...capOverride(c),
         })),
       platform
@@ -219,18 +272,53 @@ export default function ClipEditor({
   const sorted = [...clips].sort((a, b) => a.start - b.start);
   const sel = clips.find((c) => c.id === selectedId) || null;
 
+  // Drag the caption position marker over the video preview (vertical only).
+  const onCapDown = (e: React.PointerEvent) => {
+    if (!sel) return;
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    capDragRef.current = true;
+  };
+  const onCapMove = (e: React.PointerEvent) => {
+    if (!capDragRef.current || !sel || !videoWrapRef.current) return;
+    const r = videoWrapRef.current.getBoundingClientRect();
+    update(sel.id, { captionY: clamp((e.clientY - r.top) / r.height, 0.05, 0.95) });
+  };
+  const onCapUp = (e: React.PointerEvent) => {
+    capDragRef.current = false;
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+  };
+
   return (
     <div className="panel">
       <h2>Edit clips on the timeline</h2>
-      <video
-        ref={videoRef}
-        src={inputUrl(jobId)}
-        controls
-        playsInline
-        onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
-        onLoadedMetadata={(e) => setDur(e.currentTarget.duration || duration || 0)}
-        style={{ width: "100%", maxHeight: 360, borderRadius: 10, background: "#000" }}
-      />
+      <div ref={videoWrapRef} style={{ position: "relative", lineHeight: 0 }}>
+        <video
+          ref={videoRef}
+          src={inputUrl(jobId)}
+          controls
+          playsInline
+          onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+          onLoadedMetadata={(e) => setDur(e.currentTarget.duration || duration || 0)}
+          style={{ width: "100%", maxHeight: 360, borderRadius: 10, background: "#000", display: "block" }}
+        />
+        {sel && !sel.captionsOff && (
+          <div
+            className="capghost"
+            style={{ top: `${(sel.captionY ?? 0.8) * 100}%` }}
+            title="Drag to move captions up/down"
+            onPointerDown={onCapDown}
+            onPointerMove={onCapMove}
+            onPointerUp={onCapUp}
+          >
+            Captions ⇕
+          </div>
+        )}
+      </div>
 
       <div className="row" style={{ margin: "10px 0", alignItems: "center" }}>
         <button className="ghost" onClick={addAtPlayhead} disabled={dur <= 0}>
@@ -283,8 +371,10 @@ export default function ClipEditor({
               const off = d < SWEET_LO || d > SWEET_HI;
               return (
                 <tr key={c.id} className={c.id === selectedId ? "sel" : ""} onClick={() => setSelectedId(c.id)}>
-                  <td className="mono">
-                    {fmt(c.start)} → {fmt(c.end)}
+                  <td className="mono" style={{ whiteSpace: "nowrap" }}>
+                    <TimeInput value={c.start} title="Start (mm:ss)" onCommit={(s) => setStart(c, s)} />
+                    {" → "}
+                    <TimeInput value={c.end} title="End (mm:ss)" onCommit={(s) => setEnd(c, s)} />
                   </td>
                   <td className={off ? "warn-dur" : ""} title={off ? "outside the 15–40s sweet spot" : ""}>
                     {Math.round(d)}s
@@ -321,9 +411,18 @@ export default function ClipEditor({
 
       {sel && (
         <div className="capbox">
+          <div className="row" style={{ alignItems: "flex-end", marginBottom: 10 }}>
+            <div className="field" style={{ maxWidth: 260 }}>
+              <label>Layout · clip {fmt(sel.start)}–{fmt(sel.end)}</label>
+              <select value={sel.layout} onChange={(e) => update(sel.id, { layout: e.target.value })}>
+                <option value="fill">Full screen (crop to fill)</option>
+                <option value="fit">Letterbox + title card</option>
+              </select>
+            </div>
+          </div>
           <div className="row" style={{ alignItems: "flex-end", justifyContent: "space-between" }}>
             <strong style={{ fontSize: 13 }}>
-              Captions · clip {fmt(sel.start)}–{fmt(sel.end)}
+              Captions
             </strong>
             <label className="chk">
               <input

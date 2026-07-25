@@ -28,6 +28,8 @@ export type EditorSegment = {
   captions?: Caption[];
   captionsOff?: boolean;
   captionStyle?: string;
+  layout?: string;
+  captionY?: number;
 };
 
 export type Output = { file: string; url: string };

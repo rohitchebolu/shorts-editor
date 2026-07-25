@@ -21,6 +21,8 @@ export const Root: React.FC = () => {
           cropKeyframes: [],
           captions: [],
           captionStyle: "bold" as const,
+          layout: "fill" as const,
+          captionY: 0.8,
           hookLine1: "",
           hookLine2: "",
           showProgressBar: true,
