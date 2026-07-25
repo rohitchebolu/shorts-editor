@@ -130,6 +130,7 @@ export default function ClipEditor({
   const [platform, setPlatform] = useState("youtube");
   const [pending, setPending] = useState<{ start: number; end: number } | null>(null);
   const [allCaps, setAllCaps] = useState<Caption[]>([]);
+  const [videoAR, setVideoAR] = useState(16 / 9);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoWrapRef = useRef<HTMLDivElement>(null);
@@ -301,7 +302,14 @@ export default function ClipEditor({
   const sorted = [...clips].sort((a, b) => a.start - b.start);
   const sel = clips.find((c) => c.id === selectedId) || null;
 
-  // Drag the caption position marker over the video preview (vertical only).
+  // 9:16 output preview geometry. In "fit" the video is letterboxed to a centered
+  // band, so caption Y maps within that band; in "fill" it maps to the whole frame.
+  const capLayout = sel?.layout ?? "fill";
+  const bandHfrac = capLayout === "fit" ? Math.min(1, 9 / 16 / videoAR) : 1;
+  const bandTopFrac = (1 - bandHfrac) / 2;
+  const chipTopFrac = bandTopFrac + (sel?.captionY ?? 0.8) * bandHfrac;
+
+  // Drag the caption box in the 9:16 preview (vertical).
   const onCapDown = (e: React.PointerEvent) => {
     if (!sel) return;
     e.stopPropagation();
@@ -311,7 +319,9 @@ export default function ClipEditor({
   const onCapMove = (e: React.PointerEvent) => {
     if (!capDragRef.current || !sel || !videoWrapRef.current) return;
     const r = videoWrapRef.current.getBoundingClientRect();
-    update(sel.id, { captionY: clamp((e.clientY - r.top) / r.height, 0.05, 0.95) });
+    const pFrac = (e.clientY - r.top) / r.height;
+    const y = bandHfrac >= 1 ? clamp(pFrac, 0.05, 0.95) : clamp((pFrac - bandTopFrac) / bandHfrac, 0, 1);
+    update(sel.id, { captionY: y });
   };
   const onCapUp = (e: React.PointerEvent) => {
     capDragRef.current = false;
@@ -325,28 +335,60 @@ export default function ClipEditor({
   return (
     <div className="panel">
       <h2>Edit clips on the timeline</h2>
-      <div ref={videoWrapRef} style={{ position: "relative", lineHeight: 0 }}>
-        <video
-          ref={videoRef}
-          src={inputUrl(jobId)}
-          controls
-          playsInline
-          onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
-          onLoadedMetadata={(e) => setDur(e.currentTarget.duration || duration || 0)}
-          style={{ width: "100%", maxHeight: 360, borderRadius: 10, background: "#000", display: "block" }}
-        />
-        {sel && !sel.captionsOff && (
-          <div
-            className="capghost"
-            style={{ top: `${(sel.captionY ?? 0.8) * 100}%` }}
-            title="Drag to move captions up/down"
-            onPointerDown={onCapDown}
-            onPointerMove={onCapMove}
-            onPointerUp={onCapUp}
-          >
-            Captions ⇕
+      <div className="row" style={{ gap: 16, alignItems: "flex-start" }}>
+        {/* 9:16 output preview — shows the real framing + draggable caption */}
+        <div ref={videoWrapRef} className="preview916">
+          <video
+            ref={videoRef}
+            src={inputUrl(jobId)}
+            controls
+            playsInline
+            onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+            onLoadedMetadata={(e) => {
+              const v = e.currentTarget;
+              setDur(v.duration || duration || 0);
+              if (v.videoWidth && v.videoHeight) setVideoAR(v.videoWidth / v.videoHeight);
+            }}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: capLayout === "fit" ? "contain" : "cover",
+              background: "#000",
+            }}
+          />
+          {sel && !sel.captionsOff && (
+            <div
+              className="cap-chip"
+              style={{ top: `${chipTopFrac * 100}%` }}
+              title="Drag to position captions"
+              onPointerDown={onCapDown}
+              onPointerMove={onCapMove}
+              onPointerUp={onCapUp}
+            >
+              Aa&nbsp;Captions
+            </div>
+          )}
+        </div>
+
+        {/* Caption position controls */}
+        <div style={{ flex: 1, minWidth: 180 }}>
+          <label style={{ marginBottom: 6 }}>Caption position</label>
+          <div className="row" style={{ gap: 6, marginBottom: 8 }}>
+            <button className="ghost" disabled={!sel} onClick={() => sel && update(sel.id, { captionY: 0.12 })}>
+              Top
+            </button>
+            <button className="ghost" disabled={!sel} onClick={() => sel && update(sel.id, { captionY: 0.5 })}>
+              Middle
+            </button>
+            <button className="ghost" disabled={!sel} onClick={() => sel && update(sel.id, { captionY: 0.85 })}>
+              Bottom
+            </button>
           </div>
-        )}
+          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+            Drag the caption box in the preview, or use a preset. The preview shows the actual{" "}
+            {capLayout === "fit" ? "letterbox" : "full-screen"} framing for the selected clip.
+          </p>
+        </div>
       </div>
 
       <div className="row" style={{ margin: "10px 0", alignItems: "center" }}>

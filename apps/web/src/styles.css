@@ -141,7 +141,8 @@ td .why { color: var(--muted); font-size: 12px; }
 tr.sel td { background: rgba(79, 157, 255, 0.10); }
 .warn-dur { color: var(--yellow); }
 .timeinput { width: 66px; padding: 4px 6px; font-size: 13px; text-align: center; display: inline-block; }
-.capghost { position: absolute; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.6); color: #fff; border: 1px solid var(--accent); border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 600; cursor: ns-resize; user-select: none; touch-action: none; white-space: nowrap; }
+.preview916 { position: relative; width: 220px; aspect-ratio: 9 / 16; background: #000; border-radius: 10px; overflow: hidden; flex: 0 0 auto; }
+.cap-chip { position: absolute; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.55); color: #fff; border: 1px dashed var(--accent); border-radius: 6px; padding: 4px 12px; font-size: 13px; font-weight: 700; cursor: ns-resize; user-select: none; touch-action: none; white-space: nowrap; }
 
 /* Caption editor */
 .capbox { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 12px; margin-top: 12px; }
