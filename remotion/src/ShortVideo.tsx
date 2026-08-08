@@ -1,7 +1,9 @@
 import { AbsoluteFill, OffthreadVideo } from "remotion";
 import { VideoFrame } from "./components/VideoFrame";
+import { VideoFrame43 } from "./components/VideoFrame43";
 import { Captions } from "./components/Captions";
 import { HookOverlay } from "./components/HookOverlay";
+import { HookBand } from "./components/HookBand";
 import { TitleCard } from "./components/TitleCard";
 import { ProgressBar } from "./components/ProgressBar";
 import { fontFaceCSS } from "./styles/fonts";
@@ -41,6 +43,32 @@ export const ShortVideo: React.FC<ShortVideoProps> = ({
       <Captions captions={captions} style={captionStyle} />
     </div>
   );
+
+  // "four_three": 4:3 face-centered crop, vertically centered on the black
+  // canvas. Clean hook in the top bar, captions default to the clip's center
+  // (captionY 0.5) so face + captions sit in one glance.
+  if (layout === "four_three") {
+    const bandH = 810; // 1080 x 810 = 4:3
+    const bandTop = Math.round((1920 - bandH) / 2);
+    return (
+      <AbsoluteFill style={{ backgroundColor: "black" }}>
+        <style dangerouslySetInnerHTML={{ __html: fontFaceCSS }} />
+        <VideoFrame43
+          clipSrc={clipSrc}
+          sourceWidth={sourceWidth}
+          sourceHeight={sourceHeight}
+          crop={crop}
+          cropKeyframes={cropKeyframes}
+          bandTop={bandTop}
+          bandHeight={bandH}
+        />
+        {/* captionY is a fraction of the 4:3 band — 0.5 = center of the clip */}
+        {renderCaptions(bandTop + captionY * bandH)}
+        {hasTitle && <HookBand line1={hookLine1 ?? ""} line2={hookLine2 ?? ""} bandTop={bandTop} />}
+        {showProgressBar && <ProgressBar durationInSeconds={durationInSeconds} />}
+      </AbsoluteFill>
+    );
+  }
 
   // "fit": whole source frame scaled to width, vertically centered (black bars),
   // title in the black band above, captions over the video.

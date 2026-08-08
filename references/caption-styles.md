@@ -1,6 +1,25 @@
 # Caption Styles — Visual Specifications
 
-Three premium caption presets for different content tones. Each uses `@remotion/captions` createTikTokStyleCaptions() for word-level timing.
+Four premium caption presets for different content tones. Each uses `@remotion/captions` createTikTokStyleCaptions() for word-level timing.
+
+## Reaction Style (default)
+
+Best for: Reaction clips, food tasting, vlogs — the channel's house style. Designed for the `four_three` layout: 4:3 face-centered clip on a black 9:16 canvas.
+
+| Property | Value |
+|----------|-------|
+| Font | Montserrat 800 — same font as the hook text |
+| Font Size | 80px |
+| Text Transform | UPPERCASE |
+| Words Per Page | 1-2 (600ms combine window + hard cap of 2 tokens) |
+| Text Color | White (#FFFFFF) |
+| Active Word | Accent yellow (#FFD700) |
+| Emphasis | Wrap a word in `*stars*` in the caption editor → stays yellow permanently |
+| Text Shadow | 3px black outline + soft drop shadow |
+| Position | Centered on the clip (captionY 0.5 of the 4:3 band) — face and captions read in one glance |
+| Animation | Quick clean pop: scale 0.88 → 1.0, minimal bounce |
+
+**Matching hook**: the `four_three` layout renders the hook centered in the top black bar — clean white Montserrat 800, no outline, static from frame 1. Wrap exactly one power word in `*stars*` (e.g. `Idi *adirindi* anthe!`) and it renders in the same accent yellow. The AI hook generator does this automatically.
 
 ## Bold Style
 
@@ -87,7 +106,7 @@ Download from: https://fonts.google.com/
 
 ## Caption Positioning
 
-All styles share the same vertical positioning:
+Reaction style defaults to the **center of the visible clip** (captionY 0.5 in the `four_three` layout — canvas center ≈ y 960), keeping the face and captions in a single eye-line. The other styles share the classic lower-third anchor:
 - **Bottom offset**: 350px from bottom edge of 1920px frame
 - This places captions above the platform's built-in UI elements (like/comment/share buttons)
 - Safe zone for TikTok: 150px from bottom, 64px from sides

@@ -1,3 +1,5 @@
+import { renderAccented } from "./AccentText";
+
 interface TitleCardProps {
   line1: string;
   line2: string;
@@ -27,7 +29,7 @@ export const TitleCard: React.FC<TitleCardProps> = ({ line1, line2, bandTop }) =
       }}
     >
       {line2 ? <span style={{ color: "#4ade80" }}>{line2} </span> : null}
-      {line1}
+      {renderAccented(line1)}
     </div>
   );
 };

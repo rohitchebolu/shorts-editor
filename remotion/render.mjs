@@ -42,14 +42,14 @@ async function main() {
   const segmentsPath = args.segments;
   const reframePath = args.reframe;
   const captionsPath = args.captions;
-  const style = args.style || "bold";
+  const style = args.style || "reaction";
   const clipsDir = args["clips-dir"];
   const outputDir = args["output-dir"] || "/tmp/claude-shorts/render/";
 
   if (!segmentsPath || !reframePath || !captionsPath || !clipsDir) {
     console.error(JSON.stringify({
       error: "Missing required arguments",
-      usage: "node render.mjs --segments FILE --reframe FILE --captions FILE --clips-dir DIR [--style bold|bounce|clean] [--output-dir DIR]",
+      usage: "node render.mjs --segments FILE --reframe FILE --captions FILE --clips-dir DIR [--style reaction|bold|bounce|clean] [--output-dir DIR]",
     }));
     process.exit(1);
   }
@@ -157,6 +157,8 @@ async function main() {
 
       const durationInSeconds = seg.end - seg.start;
 
+      // Default preset: 4:3 reaction layout with captions at the clip's center
+      const layout = seg.layout || "four_three";
       const inputProps = {
         clipSrc: `${clipBaseUrl}/${clipName}`,
         sourceWidth: srcW,
@@ -165,8 +167,8 @@ async function main() {
         cropKeyframes,
         captions: segCaptions,
         captionStyle: seg.captionStyle || style,
-        layout: seg.layout || "fill",
-        captionY: typeof seg.captionY === "number" ? seg.captionY : 0.8,
+        layout,
+        captionY: typeof seg.captionY === "number" ? seg.captionY : layout === "four_three" ? 0.5 : 0.8,
         hookLine1: seg.hook_line1 || "",
         hookLine2: seg.hook_line2 || "",
         showProgressBar: true,

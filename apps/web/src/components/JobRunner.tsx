@@ -59,7 +59,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
   const [transcript, setTranscript] = useState<any>(null);
   const [contentType, setContentType] = useState<any>(null);
   const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [style, setStyle] = useState("bold");
+  const [style, setStyle] = useState("reaction");
   const [outputs, setOutputs] = useState<Output[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [recentJobs, setRecentJobs] = useState<JobSummary[]>([]);

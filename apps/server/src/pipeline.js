@@ -199,7 +199,7 @@ async function stage(job, name, fn) {
 }
 
 function recommendStyle(contentType) {
-  return { "talking-head": "bold", screen: "clean", podcast: "bounce" }[contentType] || "bold";
+  return { "talking-head": "reaction", screen: "clean", podcast: "reaction" }[contentType] || "reaction";
 }
 
 // Balanced auto-selection: video length sets the ceiling (~1 clip per 3 min,

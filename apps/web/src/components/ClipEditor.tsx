@@ -32,6 +32,8 @@ const fmt = (s: number) =>
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
 let uid = 0;
+// Defaults follow the reaction preset: 4:3 centered clip on black, captions
+// at the clip's center (0.5), reaction caption style.
 const newClip = (start: number, end: number, title = "", subtitle = ""): Clip => ({
   id: ++uid,
   start,
@@ -39,10 +41,10 @@ const newClip = (start: number, end: number, title = "", subtitle = ""): Clip =>
   title,
   subtitle,
   captionsOff: false,
-  captionStyle: "bold",
+  captionStyle: "reaction",
   captionText: null,
-  layout: "fill",
-  captionY: 0.8,
+  layout: "four_three",
+  captionY: 0.5,
 });
 
 const clipsFromCandidates = (cands: Candidate[]): Clip[] =>
@@ -58,10 +60,10 @@ const clipsFromSaved = (segs: any[]): Clip[] =>
     title: s.hook_line1 || "",
     subtitle: s.hook_line2 || "",
     captionsOff: !!s.captionsOff,
-    captionStyle: s.captionStyle || "bold",
+    captionStyle: s.captionStyle || "reaction",
     captionText: Array.isArray(s.captions) ? s.captions.map((c: any) => c.text).join("").trim() : null,
-    layout: s.layout || "fill",
-    captionY: typeof s.captionY === "number" ? s.captionY : 0.8,
+    layout: s.layout || "four_three",
+    captionY: typeof s.captionY === "number" ? s.captionY : 0.5,
   }));
 
 // Parse "ss", "mm:ss", or "hh:mm:ss" into seconds; null if not a valid time.
@@ -303,11 +305,17 @@ export default function ClipEditor({
   const sel = clips.find((c) => c.id === selectedId) || null;
 
   // 9:16 output preview geometry. In "fit" the video is letterboxed to a centered
-  // band, so caption Y maps within that band; in "fill" it maps to the whole frame.
-  const capLayout = sel?.layout ?? "fill";
-  const bandHfrac = capLayout === "fit" ? Math.min(1, 9 / 16 / videoAR) : 1;
+  // band and in "four_three" it's a centered 4:3 band, so caption Y maps within
+  // that band; in "fill" it maps to the whole frame.
+  const capLayout = sel?.layout ?? "four_three";
+  const bandHfrac =
+    capLayout === "fit"
+      ? Math.min(1, 9 / 16 / videoAR)
+      : capLayout === "four_three"
+        ? 9 / 16 / (4 / 3) // 0.4219 — a full-width 4:3 band on the 9:16 canvas
+        : 1;
   const bandTopFrac = (1 - bandHfrac) / 2;
-  const chipTopFrac = bandTopFrac + (sel?.captionY ?? 0.8) * bandHfrac;
+  const chipTopFrac = bandTopFrac + (sel?.captionY ?? 0.5) * bandHfrac;
 
   // Drag the caption box in the 9:16 preview (vertical).
   const onCapDown = (e: React.PointerEvent) => {
@@ -349,12 +357,25 @@ export default function ClipEditor({
               setDur(v.duration || duration || 0);
               if (v.videoWidth && v.videoHeight) setVideoAR(v.videoWidth / v.videoHeight);
             }}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: capLayout === "fit" ? "contain" : "cover",
-              background: "#000",
-            }}
+            style={
+              capLayout === "four_three"
+                ? {
+                    // centered 4:3 band; cover crops the 16:9 source's sides
+                    position: "absolute",
+                    left: 0,
+                    top: `${bandTopFrac * 100}%`,
+                    width: "100%",
+                    height: `${bandHfrac * 100}%`,
+                    objectFit: "cover",
+                    background: "#000",
+                  }
+                : {
+                    width: "100%",
+                    height: "100%",
+                    objectFit: capLayout === "fit" ? "contain" : "cover",
+                    background: "#000",
+                  }
+            }
           />
           {sel && !sel.captionsOff && (
             <div
@@ -386,7 +407,8 @@ export default function ClipEditor({
           </div>
           <p className="muted" style={{ fontSize: 12, margin: 0 }}>
             Drag the caption box in the preview, or use a preset. The preview shows the actual{" "}
-            {capLayout === "fit" ? "letterbox" : "full-screen"} framing for the selected clip.
+            {capLayout === "fit" ? "letterbox" : capLayout === "four_three" ? "4:3 centered" : "full-screen"}{" "}
+            framing for the selected clip.
           </p>
         </div>
       </div>
@@ -453,7 +475,7 @@ export default function ClipEditor({
                   <td>
                     <input
                       value={c.title}
-                      placeholder="Title (top overlay)"
+                      placeholder="Title (top hook) — *word* shows in yellow"
                       onChange={(e) => update(c.id, { title: e.target.value })}
                       style={{ marginBottom: 4 }}
                     />
@@ -486,6 +508,7 @@ export default function ClipEditor({
             <div className="field" style={{ maxWidth: 260 }}>
               <label>Layout · clip {fmt(sel.start)}–{fmt(sel.end)}</label>
               <select value={sel.layout} onChange={(e) => update(sel.id, { layout: e.target.value })}>
+                <option value="four_three">4:3 centered · black bars (reaction)</option>
                 <option value="fill">Full screen (crop to fill)</option>
                 <option value="fit">Letterbox + title card</option>
               </select>
@@ -510,6 +533,7 @@ export default function ClipEditor({
                 disabled={sel.captionsOff}
                 onChange={(e) => update(sel.id, { captionStyle: e.target.value })}
               >
+                <option value="reaction">reaction</option>
                 <option value="bold">bold</option>
                 <option value="bounce">bounce</option>
                 <option value="clean">clean</option>
@@ -526,7 +550,8 @@ export default function ClipEditor({
                 placeholder={allCaps.length ? "" : "No transcript captions for this clip."}
               />
               <p className="muted" style={{ fontSize: 12, margin: "6px 0 0" }}>
-                Fix wording only — original word timings are kept.{" "}
+                Fix wording only — original word timings are kept. Wrap a word in *stars* to keep it
+                yellow (reaction style).{" "}
                 {sel.captionText != null && (
                   <a
                     href="#"

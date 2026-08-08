@@ -12,7 +12,11 @@ const CandidatesSchema = z.object({
       z.object({
         start: z.number().describe("clip start time in seconds"),
         end: z.number().describe("clip end time in seconds"),
-        hook_line1: z.string().describe("punchy on-screen hook shown in the first ~3s"),
+        hook_line1: z
+          .string()
+          .describe(
+            "punchy on-screen hook; wrap exactly ONE power word in *asterisks* — it renders in an accent color"
+          ),
         hook_line2: z.string().default("").describe("optional second hook line"),
         score: z.number().describe("overall retention score 0-100"),
         rationale: z.string().describe("one sentence: why this clip works"),
@@ -63,8 +67,9 @@ export async function scoreSegments({ transcript, rubric, config }) {
     "2. Reject setup/filler — travel, walking, intros, prices, sponsor reads, flat narration — by scoring it low.\n" +
     "3. Each clip must run 15-40s (aim 20-35s), start and end on natural speech boundaries, and make sense on its own.\n" +
     "4. Score each clip 0-100 using the rubric's weighted dimensions.\n" +
-    "5. Write hook_line1 as a punchy Tenglish/English hook grounded ONLY in what he actually says " +
-    "(e.g. \"Idi chala bagundi!\") — never invent words.\n" +
+    "5. Write hook_line1 as a punchy Tenglish/English hook of 3-7 words grounded ONLY in what he " +
+    "actually says — never invent words. Wrap exactly ONE power word (the reaction/verdict word) " +
+    "in *asterisks*; it is rendered in a bright accent color on screen (e.g. \"Idi *adirindi* anthe!\").\n" +
     `Return between ${lo} and ${hi} clips, highest score first.`;
 
   const prompt =

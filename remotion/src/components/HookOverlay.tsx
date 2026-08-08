@@ -1,4 +1,5 @@
 import { useCurrentFrame, useVideoConfig, spring, interpolate } from "remotion";
+import { renderAccented } from "./AccentText";
 
 interface HookOverlayProps {
   line1: string;
@@ -59,7 +60,7 @@ export const HookOverlay: React.FC<HookOverlayProps> = ({ line1, line2 }) => {
             lineHeight: 1.15,
           }}
         >
-          {line1}
+          {renderAccented(line1)}
         </div>
       )}
       {line2 && (

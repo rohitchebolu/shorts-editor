@@ -27,6 +27,11 @@ export const FONTS = {
     src: staticFile("fonts/Inter-Bold.ttf"),
     weight: "700",
   },
+  notoTelugu: {
+    family: "Noto Sans Telugu",
+    src: staticFile("fonts/NotoSansTelugu-Variable.ttf"),
+    weight: "100 900", // variable font — full weight range
+  },
 } as const;
 
 /**

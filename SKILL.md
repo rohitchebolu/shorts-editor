@@ -4,7 +4,7 @@ description: >
   Interactive longform-to-shortform video creator. Extracts viral-ready short clips
   from long videos using Claude as the orchestrator. Transcribes with faster-whisper
   (GPU), Claude scores and presents candidate segments interactively, user picks and
-  adjusts, Remotion renders premium animated captions (Bold/Bounce/Clean styles),
+  adjusts, Remotion renders premium animated captions (Reaction/Bold/Bounce/Clean styles),
   FFmpeg exports platform-optimized files (YouTube Shorts, TikTok, Instagram Reels).
   Use when user says "shorts", "short clips", "shortform", "extract clips",
   "tiktok from video", "reels from video", "vertical clips", or "create shorts".
@@ -200,9 +200,9 @@ Present candidates in a formatted table:
 
 | Content type | Recommended caption style | Why |
 |--------------|---------------------------|-----|
-| talking-head | **bold**   | ALL-CAPS pop-in with an active-word highlight suits face-to-camera delivery |
+| talking-head | **reaction** | 4:3 face-centered clip on black, hook with one accent-yellow word, 1-2 word captions at the clip's center — the house style for reaction/food content |
 | screen       | **clean**  | Minimal fade keeps focus on the screen content without competing visuals |
-| podcast      | **bounce** | Energetic, colorful style matches conversational/entertainment tone |
+| podcast      | **reaction** | Same 4:3 centered treatment works for speaker-on-camera conversation |
 
 Present this recommendation as the **pre-selected default** in the AskUserQuestion below (the
 user can still override). Reframe mode is already auto-selected per content type by
@@ -211,7 +211,7 @@ keeping the human in the loop.
 
 Then ask the user using AskUserQuestion:
 1. **Which segments?** — "all", specific numbers, or "none, re-analyze"
-2. **Caption style?** — default = the recommended style above; options: bold, bounce, clean
+2. **Caption style?** — default = the recommended style above; options: reaction, bold, bounce, clean
 3. **Platform?** — youtube, tiktok, instagram, or all
 
 ### Step 6: APPROVE — Interactive Adjustment Loop
@@ -364,6 +364,7 @@ or re-exported before delivery.
 
 | Style | Font | Look | Best for |
 |-------|------|------|----------|
+| **reaction** | Montserrat 800 (matches hook) | 4:3 clip on black, 1-2 words centered on the clip, yellow active/emphasis words, `*word*` hook accent | Reaction, food, vlogs — the default |
 | **bold** | Montserrat Bold | ALL CAPS, pop-in, yellow active word | Business, education, motivation |
 | **bounce** | Bangers | Bouncy scale, rotating bright colors | Entertainment, reactions, energy |
 | **clean** | Inter Bold | Minimal fade-in, white + shadow | Professional, calm, interviews |
