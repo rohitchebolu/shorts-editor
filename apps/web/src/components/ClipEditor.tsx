@@ -286,17 +286,20 @@ export default function ClipEditor({
     setClips((cs) => [...cs, clip].sort((a, b) => a.start - b.start));
     setSelectedId(clip.id);
   };
-  // Bulk-add clips from a pasted "start - end, start - end" list. Boundaries are clamped
-  // to the video when its duration is known; otherwise taken as-is (the <video> loads fast).
+  // Set the clip list from a pasted "start - end, start - end" list — the paste DEFINES
+  // the clips (replaces the current set), so you get exactly the ranges you pasted.
+  // Boundaries clamp to the video when its duration is known.
   const addPastedRanges = () => {
     const ranges = parseRanges(pasteText);
     if (!ranges.length) return;
-    const created = ranges.map((r) => {
-      const start = clamp(r.start, 0, dur > 0 ? Math.max(0, dur - MIN_CLIP) : r.start);
-      const end = dur > 0 ? clamp(r.end, start + MIN_CLIP, dur) : Math.max(r.end, start + MIN_CLIP);
-      return newClip(start, end);
-    });
-    setClips((cs) => [...cs, ...created].sort((a, b) => a.start - b.start));
+    const created = ranges
+      .map((r) => {
+        const start = clamp(r.start, 0, dur > 0 ? Math.max(0, dur - MIN_CLIP) : r.start);
+        const end = dur > 0 ? clamp(r.end, start + MIN_CLIP, dur) : Math.max(r.end, start + MIN_CLIP);
+        return newClip(start, end);
+      })
+      .sort((a, b) => a.start - b.start);
+    setClips(created);
     setSelectedId(created[0].id);
     setPasteText("");
   };
@@ -472,10 +475,10 @@ export default function ClipEditor({
             }
           }}
           placeholder="Paste ranges → 01:37 - 02:58, 04:57 - 06:32, 09:16 - 12:34"
-          title="Comma/newline separated start–end times; a clip is created for each"
+          title="Comma/newline separated start–end times; sets the clip list to one clip per range"
         />
         <button className="ghost" onClick={addPastedRanges} disabled={pasteCount === 0}>
-          + Add {pasteCount || ""} clip{pasteCount === 1 ? "" : "s"} from ranges
+          Set {pasteCount || ""} clip{pasteCount === 1 ? "" : "s"} from ranges
         </button>
       </div>
 
