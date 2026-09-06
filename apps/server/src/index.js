@@ -3,9 +3,10 @@ import express from "express";
 import cors from "cors";
 import fs from "fs";
 import path from "path";
-import { PORT } from "./paths.js";
+import { PORT, WEB_DIST } from "./paths.js";
 import { publicConfig, setConfig, getSecret } from "./config.js";
 import { testConnection } from "./llm.js";
+import { logPreflight } from "./preflight.js";
 import {
   startJob,
   getJob,
@@ -21,8 +22,11 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: "1mb" }));
 
+// Startup preflight (tools + yt-dlp version); cached for /api/health.
+const PREFLIGHT = logPreflight();
+
 app.get("/api/health", (_req, res) =>
-  res.json({ ok: true, stages: { phase1: PHASE1_STAGES, phase2: PHASE2_STAGES } })
+  res.json({ ok: true, preflight: PREFLIGHT, stages: { phase1: PHASE1_STAGES, phase2: PHASE2_STAGES } })
 );
 
 // ---- Provider config ---------------------------------------------------------
@@ -122,8 +126,13 @@ app.get("/api/jobs/:id/input", (req, res) => {
 app.get("/api/jobs/:id/captions", (req, res) => {
   const job = getJob(req.params.id);
   if (!job) return res.status(404).end();
-  const file = path.join(job.tmp, "transcript.json");
-  if (!fs.existsSync(file)) return res.json({ captions: [] });
+  // Prefer the full up-front transcript (AI mode); fall back to the per-clip captions
+  // written in Phase 2 (manual mode transcribes only the kept clips).
+  const file = [
+    path.join(job.tmp, "transcript.json"),
+    path.join(job.tmp, "transcript_cleaned.json"),
+  ].find((p) => fs.existsSync(p));
+  if (!file) return res.json({ captions: [] });
   try {
     const t = JSON.parse(fs.readFileSync(file, "utf-8"));
     res.json({ captions: t.captions || [] });
@@ -155,6 +164,17 @@ app.get("/api/jobs/:id/file/:name", (req, res) => {
   res.sendFile(file);
 });
 
+// Serve the built React UI (single-process mode). If apps/web/dist doesn't exist we're
+// in dev — the Vite dev server serves the UI and proxies /api here instead.
+if (fs.existsSync(WEB_DIST)) {
+  app.use(express.static(WEB_DIST));
+  app.get("*", (req, res) => {
+    if (req.path.startsWith("/api")) return res.status(404).end();
+    res.sendFile(path.join(WEB_DIST, "index.html"));
+  });
+}
+
 app.listen(PORT, () => {
-  console.log(`[shorts-server] http://localhost:${PORT}`);
+  const mode = fs.existsSync(WEB_DIST) ? "UI + API" : "API only (run Vite for the UI)";
+  console.log(`[shorts-server] ${mode} → http://localhost:${PORT}`);
 });

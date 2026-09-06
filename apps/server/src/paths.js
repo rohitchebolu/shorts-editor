@@ -38,6 +38,12 @@ export function ffmpegCmd() {
   return firstExisting([path.join(TOOLS_BIN, "ffmpeg.exe")], "ffmpeg");
 }
 
+/** ffprobe command — full path to the portable build on Windows, else PATH lookup. */
+export function ffprobeCmd() {
+  if (!IS_WIN) return "ffprobe";
+  return firstExisting([path.join(TOOLS_BIN, "ffprobe.exe")], "ffprobe");
+}
+
 /** bash command — Git Bash on Windows, else PATH lookup. */
 export function bashCmd() {
   if (!IS_WIN) return "bash";
@@ -60,6 +66,10 @@ export function pipelineEnv(extra = {}) {
 
 export const REPO_ROOT = path.resolve(__dirname, "../../..");
 export const SCRIPTS_DIR = path.join(REPO_ROOT, "scripts");
+// Built web UI (Vite output). When present, the server serves it directly so the whole
+// app runs as ONE process (no separate Vite dev server) — lighter + matches the cloud image.
+export const WEB_DIST = path.join(REPO_ROOT, "apps", "web", "dist");
+export const DENO_BIN = path.join(TOOLS_BIN, IS_WIN ? "deno.exe" : "deno");
 export const RUN_PY = path.join(SCRIPTS_DIR, "run_py.sh");
 export const REMOTION_RENDER = path.join(REPO_ROOT, "remotion", "render.mjs");
 export const RUBRIC_FILE = path.join(REPO_ROOT, "references", "scoring-rubric.md");

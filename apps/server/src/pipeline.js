@@ -19,6 +19,7 @@ import {
   JOBS_DIR,
   venvPython,
   ffmpegCmd,
+  ffprobeCmd,
   bashCmd,
   pipelineEnv,
 } from "./paths.js";
@@ -186,6 +187,60 @@ function py(job, script, args, extraEnv) {
   );
 }
 
+// ffprobe the media duration (seconds) without transcribing — used to populate the
+// editor timeline in manual mode, where transcription is deferred to Phase 2.
+function probeDuration(input) {
+  return new Promise((resolve) => {
+    let out = "";
+    try {
+      const child = spawn(
+        ffprobeCmd(),
+        ["-v", "quiet", "-show_entries", "format=duration", "-of", "csv=p=0", input],
+        { env: pipelineEnv() }
+      );
+      child.stdout.on("data", (d) => (out += d.toString()));
+      child.on("close", () => resolve(parseFloat(out.trim()) || 0));
+      child.on("error", () => resolve(0));
+    } catch {
+      resolve(0);
+    }
+  });
+}
+
+// Manual mode: transcribe only the extracted (kept) clips, not the whole source — the
+// big speedup. Each clip is transcribed clip-local (0-based), then its captions are
+// offset into the full video's timeline and clamped to the clip window, so render.mjs
+// slices them exactly like an up-front full transcript. Writes transcript_cleaned.json.
+async function transcribeClips(job, snapped, env) {
+  const combined = [];
+  for (const seg of snapped.segments) {
+    if (seg.captionsOff) continue; // captions disabled for this clip — skip transcription
+    const clip = path.join(job.tmp, "clips", `clip_${String(seg.id).padStart(2, "0")}.mp4`);
+    if (!fs.existsSync(clip)) continue;
+    const tPath = path.join(job.tmp, `clip_${String(seg.id).padStart(2, "0")}_transcript.json`);
+    const args = [clip, "--output", tPath, "--model", job.options.model];
+    if (job.options.language) args.push("--language", job.options.language);
+    if (job.options.backend && job.options.backend !== "faster-whisper")
+      args.push("--backend", job.options.backend);
+    await py(job, "transcribe.py", args, env);
+    const t = readJsonSafe(tPath);
+    const offset = Number(seg.start) * 1000;
+    const endCap = Number(seg.end) * 1000;
+    for (const c of t?.captions || []) {
+      const startMs = Math.round(c.startMs + offset);
+      const endMs = Math.min(Math.round(c.endMs + offset), endCap);
+      if (endMs > startMs) combined.push({ text: c.text, startMs, endMs });
+    }
+  }
+  writeJson(path.join(job.tmp, "transcript_cleaned.json"), { captions: combined });
+  job.transcript = {
+    language: job.options.language || "auto",
+    word_count: combined.length,
+    duration: job.transcript?.duration || 0,
+  };
+  emit(job, { type: "data", key: "transcript", value: job.transcript });
+}
+
 async function stage(job, name, fn) {
   job.stage = name;
   emit(job, { type: "stage", stage: name, status: "running" });
@@ -275,31 +330,45 @@ async function runPhase1(job) {
     }
   });
 
-  await stage(job, "transcribe", async () => {
-    const tPath = path.join(job.tmp, "transcript.json");
-    if (!fs.existsSync(tPath)) {
-      const args = [input, "--output", tPath, "--model", job.options.model];
-      if (job.options.language) args.push("--language", job.options.language);
-      if (job.options.backend && job.options.backend !== "faster-whisper")
-        args.push("--backend", job.options.backend);
-      await py(job, "transcribe.py", args, env);
-    }
-    const t = readJson(tPath);
-    job.transcript = { language: t.language, word_count: t.word_count, duration: t.duration };
+  if (job.options.mode === "manual") {
+    // Manual: defer transcription to Phase 2, where only the KEPT clips are transcribed
+    // (the big speedup — no whole-video Whisper pass). Just probe the source duration so
+    // the editor timeline is ready immediately after the download.
+    const duration = await probeDuration(input);
+    job.transcript = { language: job.options.language || null, word_count: 0, duration };
     emit(job, { type: "data", key: "transcript", value: job.transcript });
-    // Cleaned captions for rendering (copied as-is).
-    const cleaned = path.join(job.tmp, "transcript_cleaned.json");
-    if (!fs.existsSync(cleaned)) fs.copyFileSync(tPath, cleaned);
-  });
+  } else {
+    await stage(job, "transcribe", async () => {
+      const tPath = path.join(job.tmp, "transcript.json");
+      if (!fs.existsSync(tPath)) {
+        const args = [input, "--output", tPath, "--model", job.options.model];
+        if (job.options.language) args.push("--language", job.options.language);
+        if (job.options.backend && job.options.backend !== "faster-whisper")
+          args.push("--backend", job.options.backend);
+        await py(job, "transcribe.py", args, env);
+      }
+      const t = readJson(tPath);
+      job.transcript = { language: t.language, word_count: t.word_count, duration: t.duration };
+      emit(job, { type: "data", key: "transcript", value: job.transcript });
+      // Cleaned captions for rendering (copied as-is).
+      const cleaned = path.join(job.tmp, "transcript_cleaned.json");
+      if (!fs.existsSync(cleaned)) fs.copyFileSync(tPath, cleaned);
+    });
+  }
 
-  await stage(job, "detect", async () => {
-    const cPath = path.join(job.tmp, "content_type.json");
-    if (!fs.existsSync(cPath)) {
-      await py(job, "detect_content.py", [input, "--output", cPath], env);
-    }
-    job.contentType = readJsonSafe(cPath);
-    emit(job, { type: "data", key: "contentType", value: job.contentType });
-  });
+  // Content-type detection only informs AI style + face-track reframe choices. Manual
+  // mode uses the fixed reaction/center layout, so skip it — saves ~35s and the mediapipe
+  // frame-sampling pass entirely.
+  if (job.options.mode !== "manual") {
+    await stage(job, "detect", async () => {
+      const cPath = path.join(job.tmp, "content_type.json");
+      if (!fs.existsSync(cPath)) {
+        await py(job, "detect_content.py", [input, "--output", cPath], env);
+      }
+      job.contentType = readJsonSafe(cPath);
+      emit(job, { type: "data", key: "contentType", value: job.contentType });
+    });
+  }
 
   // AI mode scores the transcript into candidates; manual mode skips the LLM
   // entirely (no provider/key required) and opens an empty editor.
@@ -347,6 +416,10 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
   const input = path.join(job.tmp, "input.mp4");
   const contentType = job.contentType?.content_type || "talking-head";
   const finalStyle = style || recommendStyle(contentType);
+  const isManual = job.options.mode === "manual";
+  // Manual mode uses the fast static center crop (no mediapipe/opencv). The 4:3
+  // reaction layout re-derives its window from this crop's center.
+  const reframeType = isManual ? "center" : contentType;
 
   // Start each render clean so stale clips/outputs from a previous run don't linger.
   for (const sub of ["clips", "render", "out"]) {
@@ -400,16 +473,23 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
     content_type: contentType,
   });
 
-  await stage(job, "snap", async () => {
-    await py(job, "snap_boundaries.py", [
-      "--segments", path.join(job.tmp, "approved_segments.json"),
-      "--transcript", path.join(job.tmp, "transcript.json"),
-      "--input-video", input,
-      "--output", path.join(job.tmp, "snapped_segments.json"),
-    ], env);
-  });
+  const snappedFile = path.join(job.tmp, "snapped_segments.json");
+  if (isManual) {
+    // Manual in/out points are deliberate — respect them exactly (and there's no full
+    // transcript to snap against, since transcription is deferred to the clips below).
+    fs.copyFileSync(path.join(job.tmp, "approved_segments.json"), snappedFile);
+  } else {
+    await stage(job, "snap", async () => {
+      await py(job, "snap_boundaries.py", [
+        "--segments", path.join(job.tmp, "approved_segments.json"),
+        "--transcript", path.join(job.tmp, "transcript.json"),
+        "--input-video", input,
+        "--output", snappedFile,
+      ], env);
+    });
+  }
 
-  const snapped = readJson(path.join(job.tmp, "snapped_segments.json"));
+  const snapped = readJson(snappedFile);
 
   await stage(job, "extract", async () => {
     for (const seg of snapped.segments) {
@@ -423,10 +503,17 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
     }
   });
 
+  // Manual: transcribe only the extracted clips now (deferred from Phase 1).
+  if (isManual) {
+    await stage(job, "transcribe", async () => {
+      await transcribeClips(job, snapped, env);
+    });
+  }
+
   await stage(job, "reframe", async () => {
     await py(job, "compute_reframe.py", [
       "--clips-dir", path.join(job.tmp, "clips") + path.sep,
-      "--content-type", contentType,
+      "--content-type", reframeType,
       "--output", path.join(job.tmp, "reframe.json"),
     ], env);
   });
@@ -456,6 +543,7 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
         "--input-dir", path.join(job.tmp, "render") + path.sep,
         "--platform", platform,
         "--output-dir", path.join(job.tmp, "out") + path.sep,
+        "--copy-video",
       ],
       { env: pipelineEnv(env) },
       () => {}

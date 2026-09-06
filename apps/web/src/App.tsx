@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Settings from "./components/Settings";
 import JobRunner from "./components/JobRunner";
-import { getConfig, type ProviderConfig } from "./api";
+import { getConfig, AI_ENABLED, type ProviderConfig } from "./api";
 
 export default function App() {
   const [config, setConfig] = useState<ProviderConfig | null>(null);
@@ -11,7 +11,8 @@ export default function App() {
     getConfig()
       .then((c) => {
         setConfig(c);
-        if (!c.provider || !c.hasKey) setShowSettings(true);
+        // Only nag about a missing provider when AI mode is actually enabled.
+        if (AI_ENABLED && (!c.provider || !c.hasKey)) setShowSettings(true);
       })
       .catch(() => setConfig({ provider: null, model: "", hasKey: false }));
   }, []);
@@ -23,20 +24,24 @@ export default function App() {
       <header className="top">
         <div>
           <h1>Shorts Editor</h1>
-          <div className="sub">YouTube URL → auto-clipped vertical short · powered by Gemini / Groq</div>
+          <div className="sub">
+            YouTube URL → trim clips → vertical short · manual, CPU-only
+          </div>
         </div>
-        <button className="ghost" onClick={() => setShowSettings((s) => !s)}>
-          {showSettings ? "Hide settings" : "Settings"}
-        </button>
+        {AI_ENABLED && (
+          <button className="ghost" onClick={() => setShowSettings((s) => !s)}>
+            {showSettings ? "Hide settings" : "Settings"}
+          </button>
+        )}
       </header>
 
-      {!config.hasKey && !showSettings && (
+      {AI_ENABLED && !config.hasKey && !showSettings && (
         <div className="banner">
           No LLM provider configured — <a onClick={() => setShowSettings(true)}>open settings</a> to add Gemini or Groq.
         </div>
       )}
 
-      {showSettings && <Settings config={config} onSaved={setConfig} />}
+      {AI_ENABLED && showSettings && <Settings config={config} onSaved={setConfig} />}
 
       <JobRunner config={config} />
     </div>

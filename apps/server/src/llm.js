@@ -1,9 +1,11 @@
-// The "brain" — replaces Claude's in-session scoring with a pluggable provider.
-// Uses the Vercel AI SDK so Gemini (Google) and Groq share one interface and both
-// return validated, structured JSON (no fragile prompt-parsing).
-import { generateObject } from "ai";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createGroq } from "@ai-sdk/groq";
+// The "brain" — OPTIONAL AI clip-scoring provider (Gemini / Groq via the Vercel AI SDK).
+//
+// This is the lightest, manual-only build: it runs MANUAL mode end-to-end without
+// any AI provider, so the AI SDK packages (`ai`, `@ai-sdk/google`, `@ai-sdk/groq`)
+// are NOT installed by default and are imported lazily below. Manual mode never
+// reaches the provider paths here. To re-enable AI suggestions:
+//   1. cd apps/server && npm i ai @ai-sdk/google @ai-sdk/groq
+//   2. flip AI_ENABLED to true in apps/web/src/api.ts
 import { z } from "zod";
 
 const CandidatesSchema = z.object({
@@ -25,13 +27,32 @@ const CandidatesSchema = z.object({
     .min(1),
 });
 
+// Lazily load an optional AI package; give an actionable error if it isn't installed
+// (this lightest build ships without them). Keeps the server bootable in manual mode.
+async function loadOptional(pkg) {
+  try {
+    return await import(pkg);
+  } catch {
+    throw new Error(
+      "AI mode is not installed in this build. Enable it with: " +
+        "cd apps/server && npm i ai @ai-sdk/google @ai-sdk/groq"
+    );
+  }
+}
+
 /** Build an AI SDK model handle for the configured provider + user's API key. */
-function resolveModel({ provider, model, apiKey }) {
+async function resolveModel({ provider, model, apiKey }) {
   if (!provider) throw new Error("No LLM provider configured.");
   if (!apiKey) throw new Error("No API key configured for the provider.");
   if (!model) throw new Error("No model name configured.");
-  if (provider === "google") return createGoogleGenerativeAI({ apiKey })(model);
-  if (provider === "groq") return createGroq({ apiKey })(model);
+  if (provider === "google") {
+    const { createGoogleGenerativeAI } = await loadOptional("@ai-sdk/google");
+    return createGoogleGenerativeAI({ apiKey })(model);
+  }
+  if (provider === "groq") {
+    const { createGroq } = await loadOptional("@ai-sdk/groq");
+    return createGroq({ apiKey })(model);
+  }
   throw new Error(`Unknown provider: ${provider}`);
 }
 
@@ -42,7 +63,8 @@ function resolveModel({ provider, model, apiKey }) {
  * @param config     { provider, model, apiKey }
  */
 export async function scoreSegments({ transcript, rubric, config }) {
-  const model = resolveModel(config);
+  const model = await resolveModel(config);
+  const { generateObject } = await loadOptional("ai");
 
   const lines = (transcript.segments || [])
     .map((s) => `[${Number(s.start).toFixed(1)}-${Number(s.end).toFixed(1)}] ${s.text}`)
@@ -85,7 +107,8 @@ export async function scoreSegments({ transcript, rubric, config }) {
 
 /** Cheap round-trip to validate the provider + model + key. */
 export async function testConnection(config) {
-  const model = resolveModel(config);
+  const model = await resolveModel(config);
+  const { generateObject } = await loadOptional("ai");
   const { object } = await generateObject({
     model,
     schema: z.object({ ok: z.boolean() }),

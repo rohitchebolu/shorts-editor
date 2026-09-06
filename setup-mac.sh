@@ -66,13 +66,18 @@ echo "[node] installing web-app (React UI + server) dependencies ..."
 ( cd "$SCRIPT_DIR" && npm install --silent )
 echo "[node] installing Remotion dependencies ..."
 ( cd "$SCRIPT_DIR/remotion" && npm install --silent )
+echo "[node] building the web UI (served by the API server — single process) ..."
+( cd "$SCRIPT_DIR" && npm run build --silent )
+
+# --- 5. Preflight: verify tools are ready (ffmpeg, deno, yt-dlp version, mlx) ---
+( cd "$SCRIPT_DIR" && npm run doctor --silent ) || true
 
 echo ""
-echo "=== Setup complete ==="
+echo "=== Setup complete (lightest / manual-only build) ==="
 echo "Venv:   ./.venv  (managed by uv — 'uv sync' to update)"
 echo ""
-echo "Start the web app (no Claude needed):   npm run dev"
-echo "  then open http://localhost:5173, add your Gemini/Groq key in Settings, paste a URL."
+echo "Run it (single process — UI + API together):   npm run serve"
+echo "  then open http://localhost:8787, paste a YouTube URL, trim your clips, render."
 echo ""
-echo "Fast transcription on this Mac:  choose backend 'mlx' (e.g. model large-v3) in the UI."
-echo "CLI alternative:  bash scripts/run_py.sh <script.py> ...   or  /shorts <url> in Claude Code."
+echo "Dev mode with hot-reload (two processes):       npm run dev   (UI on :5173)"
+echo "Fast transcription on this Mac uses the 'mlx' backend automatically."

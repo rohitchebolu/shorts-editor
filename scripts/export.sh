@@ -10,6 +10,7 @@ INPUT_DIR=""
 PLATFORM="all"
 OUTPUT_DIR="./shorts"
 FORCE="false"
+COPY_VIDEO="false"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -17,6 +18,10 @@ while [[ $# -gt 0 ]]; do
         --platform) PLATFORM="$2"; shift 2 ;;
         --output-dir) OUTPUT_DIR="$2"; shift 2 ;;
         --force) FORCE="true"; shift ;;
+        # Fast single-encode: keep the already-encoded Remotion video (stream copy) and
+        # only re-encode audio (loudnorm). Skips a full second H.264 pass with no quality
+        # loss. Ignores per-platform video bitrate targets (file stays at the render's CRF).
+        --copy-video) COPY_VIDEO="true"; shift ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
@@ -58,6 +63,21 @@ elif [ "$HAS_VIDEOTOOLBOX" = "true" ]; then
 else
     ENCODER="libx264"
 fi
+# Copy mode reports the true video codec (no re-encode).
+[ "$COPY_VIDEO" = "true" ] && ENCODER="copy"
+
+# Fast single-encode: stream-copy the video, re-encode only audio with loudnorm.
+encode_copy() {
+    local input="$1" output="$2" plat="$3"
+    local abr="128k" ar="44100"
+    [ "$plat" = "youtube" ] && { abr="192k"; ar="48000"; }
+    ffmpeg -y -i "$input" \
+        -c:v copy \
+        -af loudnorm=I=-14:TP=-1:LRA=11 \
+        -c:a aac -b:a "$abr" -ar "$ar" \
+        -movflags +faststart \
+        "$output" 2>/dev/null
+}
 
 # Platform encoding functions
 encode_youtube() {
@@ -191,7 +211,11 @@ for input_file in "$INPUT_DIR"/short_*.mp4; do
             continue
         fi
 
-        $encode_func "$input_file" "$output_file"
+        if [ "$COPY_VIDEO" = "true" ]; then
+            encode_copy "$input_file" "$output_file" "$plat"
+        else
+            $encode_func "$input_file" "$output_file"
+        fi
 
         # Get file info
         size=$(du -k "$output_file" | cut -f1)

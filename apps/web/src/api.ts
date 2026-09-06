@@ -1,4 +1,10 @@
 // Thin client for the orchestrator API.
+
+// Lightest build: MANUAL mode only. Flip to true (and install the AI SDK packages
+// in apps/server — see apps/server/package.json "comment") to bring back AI clip
+// suggestions, the Settings panel, and the Mode selector.
+export const AI_ENABLED = false;
+
 export type Provider = "google" | "groq";
 
 export type ProviderConfig = {

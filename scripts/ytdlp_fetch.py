@@ -85,6 +85,12 @@ def main():
         "no_warnings": True,
         "retries": 3,
         "fragment_retries": 3,
+        # YouTube now protects its media URLs with a JavaScript "n-signature" challenge.
+        # yt-dlp solves it with an external solver script (EJS) run via a JS runtime (deno,
+        # shipped in ~/.shorts-tools/bin). Without this, the challenge fails and the media
+        # URLs return HTTP 403 Forbidden. "ejs:github" fetches + caches the solver on first
+        # use. Requires network access the first time and keeping yt-dlp reasonably current.
+        "remote_components": ["ejs:github"],
         # Re-mux to mp4 if the merged container isn't already mp4.
         "postprocessors": [
             {"key": "FFmpegVideoRemuxer", "preferedformat": "mp4"},

@@ -81,8 +81,13 @@ def extract_audio(video_path, audio_path):
         sys.exit(1)
 
 
-def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="auto", language=None):
-    """Run faster-whisper transcription with word-level timestamps."""
+def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="auto",
+               language=None, beam_size=1, batch_size=0):
+    """Run faster-whisper transcription with word-level timestamps.
+
+    beam_size=1 (greedy) is ~2x faster than beam_size=5 with a small accuracy cost.
+    batch_size>1 uses BatchedInferencePipeline to parallelize chunks across the CPU
+    (best-effort — falls back to sequential if unavailable)."""
     from faster_whisper import WhisperModel
 
     # Auto-detect device
@@ -99,10 +104,9 @@ def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="a
 
     model = WhisperModel(model_size, device=device, compute_type=compute_type)
 
-    segments_iter, info = model.transcribe(
-        audio_path,
+    common = dict(
         language=language,
-        beam_size=5,
+        beam_size=beam_size,
         word_timestamps=True,
         vad_filter=True,
         vad_parameters=dict(
@@ -110,6 +114,19 @@ def transcribe(audio_path, model_size="large-v3", device="auto", compute_type="a
             speech_pad_ms=200,
         ),
     )
+
+    # Batched inference parallelizes chunks for a solid CPU speedup. Best-effort:
+    # fall back to sequential if the installed faster-whisper lacks it or errors.
+    segments_iter = info = None
+    if batch_size and batch_size > 1:
+        try:
+            from faster_whisper import BatchedInferencePipeline
+            batched = BatchedInferencePipeline(model=model)
+            segments_iter, info = batched.transcribe(audio_path, batch_size=batch_size, **common)
+        except Exception:
+            segments_iter = info = None
+    if segments_iter is None:
+        segments_iter, info = model.transcribe(audio_path, **common)
 
     segments = []
     captions = []
@@ -289,6 +306,10 @@ def main():
                              "torch+transformers). Default: faster-whisper.")
     parser.add_argument("--language", default=None,
                         help="Force a language code (e.g. 'te' for Telugu). Default: auto-detect.")
+    parser.add_argument("--beam-size", type=int, default=1,
+                        help="faster-whisper beam size (default 1 = greedy, ~2x faster than 5).")
+    parser.add_argument("--batch-size", type=int, default=0,
+                        help="If >1, use BatchedInferencePipeline for faster CPU transcription (best-effort).")
     parser.add_argument("--romanize", action="store_true",
                         help="Romanize the transcript to Latin (Tenglish). Auto-enabled for Telugu.")
 
@@ -328,7 +349,8 @@ def main():
             )
         else:
             segments, captions, info, actual_device, actual_compute = transcribe(
-                audio_path, args.model, args.device, args.compute_type, args.language
+                audio_path, args.model, args.device, args.compute_type, args.language,
+                beam_size=args.beam_size, batch_size=args.batch_size,
             )
     finally:
         if tmp_audio and os.path.exists(tmp_audio):

@@ -323,8 +323,9 @@ def main():
     parser = argparse.ArgumentParser(description="Compute reframe coordinates")
     parser.add_argument("--clips-dir", required=True, help="Directory with clip files")
     parser.add_argument("--content-type", required=True,
-                        choices=["talking-head", "screen", "podcast"],
-                        help="Content type for reframing strategy")
+                        choices=["talking-head", "screen", "podcast", "center"],
+                        help="Content type for reframing strategy. 'center' = fast static "
+                             "center crop (no mediapipe/opencv) — used for the 4:3 reaction layout.")
     parser.add_argument("--output", required=True, help="Output JSON file")
     parser.add_argument("--zoom", type=float, default=0.55,
                         help="Screen zoom level: fraction of source width to show (default: 0.55)")
@@ -350,7 +351,15 @@ def main():
         clip_name = os.path.basename(clip_path)
         src_w, src_h, fps, duration = get_video_info(clip_path)
 
-        if args.content_type == "talking-head":
+        if args.content_type == "center":
+            # Fast path: static 9:16 center crop from ffprobe dimensions only. The 4:3
+            # reaction layout re-derives its horizontal window from this crop's center,
+            # so a centered subject looks the same as face-tracking — without mediapipe.
+            crop = compute_crop_center(src_w, src_h)
+            strategy = "center"
+            crop_keyframes = []
+            face_positions = []
+        elif args.content_type == "talking-head":
             face_positions = compute_face_track(clip_path, src_w, src_h)
             crop = compute_crop_face_track(src_w, src_h, face_positions)
             strategy = "face-track"

@@ -22,6 +22,7 @@ import { renderMedia, selectComposition, openBrowser } from "@remotion/renderer"
 import path from "path";
 import fs from "fs";
 import http from "http";
+import os from "os";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -105,6 +106,20 @@ async function main() {
     process.platform === "darwin"
       ? { hardwareAcceleration: "if-possible", videoBitrate: "16M" }
       : { crf: 18 };
+
+  // Speed knobs: JPEG frames render faster than PNG (negligible quality loss for
+  // video), and concurrency parallelizes frame rendering across CPU cores. Leave
+  // concurrency unset to use Remotion's default; override via SHORTS_RENDER_CONCURRENCY
+  // (e.g. lower it on a RAM-constrained box, raise it on a many-core server).
+  const perfOptions = { imageFormat: "jpeg", jpegQuality: 90 };
+  if (process.env.SHORTS_RENDER_CONCURRENCY) {
+    perfOptions.concurrency = Number(process.env.SHORTS_RENDER_CONCURRENCY);
+  } else if (os.freemem() / 1e9 < 4) {
+    // Low free RAM: each Chromium render tab needs a few hundred MB. Cap concurrency
+    // so we don't swap/OOM (common on a 16 GB laptop with lots of browser tabs open).
+    perfOptions.concurrency = 2;
+    console.log(JSON.stringify({ action: "perf", note: "low memory — capping concurrency at 2" }));
+  }
 
   const results = [];
 
@@ -203,6 +218,7 @@ async function main() {
             serveUrl,
             codec: "h264",
             ...encodingOptions,
+            ...perfOptions,
             outputLocation: outputPath,
             inputProps,
             puppeteerInstance: browser,

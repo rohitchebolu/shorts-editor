@@ -5,6 +5,7 @@ import {
   subscribe,
   listJobs,
   rerunJob,
+  AI_ENABLED,
   type Candidate,
   type EditorSegment,
   type Output,
@@ -27,6 +28,10 @@ const STAGES = [
 type Stage = (typeof STAGES)[number];
 type StageState = "pending" | "running" | "done" | "error";
 
+// Manual mode: no LLM scoring, no content detection, no boundary snapping. Transcription
+// is deferred to Phase 2 and runs on the kept clips only (after extract).
+const MANUAL_STAGES: Stage[] = ["fetch", "extract", "transcribe", "reframe", "render", "export"];
+
 const STAGE_LABEL: Record<Stage, string> = {
   fetch: "Fetch (yt-dlp)",
   transcribe: "Transcribe (Whisper)",
@@ -48,11 +53,11 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
   const [url, setUrl] = useState("");
   const [model, setModel] = useState(IS_MAC ? "large-v3-turbo" : "small");
   const [backend, setBackend] = useState(IS_MAC ? "mlx" : "faster-whisper");
-  const [mode, setMode] = useState<"ai" | "manual">("ai");
+  const [mode, setMode] = useState<"ai" | "manual">(AI_ENABLED ? "ai" : "manual");
 
   const [jobId, setJobId] = useState<string | null>(null);
   const [status, setStatus] = useState<string>("idle");
-  const [jobMode, setJobMode] = useState<string>("ai");
+  const [jobMode, setJobMode] = useState<string>(AI_ENABLED ? "ai" : "manual");
   const [duration, setDuration] = useState(0);
   const [stageState, setStageState] = useState<Record<string, StageState>>({});
   const [logs, setLogs] = useState<string[]>([]);
@@ -172,7 +177,7 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
 
   const running = status === "running";
   const canStart = !!url && (mode === "manual" || config.hasKey) && !running;
-  const stages = jobMode === "manual" ? STAGES.filter((s) => s !== "score") : STAGES;
+  const stages = jobMode === "manual" ? MANUAL_STAGES : STAGES;
 
   return (
     <>
@@ -206,18 +211,20 @@ export default function JobRunner({ config }: { config: ProviderConfig }) {
               <option value="hf">Tenglish model (HF · needs extra)</option>
             </select>
           </div>
-          <div className="field" style={{ maxWidth: 150 }}>
-            <label>Mode</label>
-            <select value={mode} onChange={(e) => setMode(e.target.value as "ai" | "manual")}>
-              <option value="ai">AI suggest ✨</option>
-              <option value="manual">Manual ✎</option>
-            </select>
-          </div>
+          {AI_ENABLED && (
+            <div className="field" style={{ maxWidth: 150 }}>
+              <label>Mode</label>
+              <select value={mode} onChange={(e) => setMode(e.target.value as "ai" | "manual")}>
+                <option value="ai">AI suggest ✨</option>
+                <option value="manual">Manual ✎</option>
+              </select>
+            </div>
+          )}
           <button onClick={run} disabled={!canStart}>
             {running ? "Running…" : "Start"}
           </button>
         </div>
-        {mode === "ai" && !config.hasKey && (
+        {AI_ENABLED && mode === "ai" && !config.hasKey && (
           <p className="err" style={{ marginBottom: 0 }}>
             Configure an LLM provider above for AI suggestions, or switch Mode to Manual.
           </p>

@@ -11,7 +11,10 @@ dependencies = [
     # numpy>=2.5 pin forces numba down to an ancient build that won't compile on Python 3.13.
     "numpy>=1.24.0",
     "opencv-python>=5.0.0.93",
-    "yt-dlp>=2026.7.4",
+    # Keep current: YouTube changes its JS challenge / PO-token scheme often, which
+    # breaks older yt-dlp with HTTP 403 on the media download. 2026.8.19+ handles the
+    # HD n-signature + PO-token flow via remote components (see scripts/ytdlp_fetch.py).
+    "yt-dlp>=2026.8.19",
 ]
 
 [project.optional-dependencies]
