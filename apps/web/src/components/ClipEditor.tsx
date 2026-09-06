@@ -77,6 +77,25 @@ function parseTime(str: string): number | null {
   return n.length === 1 ? n[0] : n.length === 2 ? n[0] * 60 + n[1] : n[0] * 3600 + n[1] * 60 + n[2];
 }
 
+// Parse a pasted list of ranges into {start,end} second-pairs. Accepts ranges separated
+// by commas / newlines / semicolons, with a dash (-, –, —) or "to" between start and end:
+//   "01:37 - 02:58, 04:57 - 06:32, 09:16 - 12:34"
+// Invalid or too-short (< MIN_CLIP) pairs are skipped.
+function parseRanges(text: string): { start: number; end: number }[] {
+  const out: { start: number; end: number }[] = [];
+  for (const chunk of text.split(/[,\n;]+/)) {
+    const p = chunk.trim();
+    if (!p) continue;
+    const pair = p.split(/\s*(?:-|–|—|\bto\b)\s*/i).filter(Boolean);
+    if (pair.length !== 2) continue;
+    const start = parseTime(pair[0]);
+    const end = parseTime(pair[1]);
+    if (start == null || end == null || end - start < MIN_CLIP) continue;
+    out.push({ start, end });
+  }
+  return out;
+}
+
 // Editable mm:ss (or hh:mm:ss) time field. Commits on blur/Enter; reverts if invalid.
 function TimeInput({ value, onCommit, title }: { value: number; onCommit: (s: number) => void; title?: string }) {
   const [text, setText] = useState(() => fmt(value));
@@ -132,6 +151,7 @@ export default function ClipEditor({
   const [platform, setPlatform] = useState("youtube");
   const [pending, setPending] = useState<{ start: number; end: number } | null>(null);
   const [allCaps, setAllCaps] = useState<Caption[]>([]);
+  const [pasteText, setPasteText] = useState("");
   const [videoAR, setVideoAR] = useState(16 / 9);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -266,6 +286,20 @@ export default function ClipEditor({
     setClips((cs) => [...cs, clip].sort((a, b) => a.start - b.start));
     setSelectedId(clip.id);
   };
+  // Bulk-add clips from a pasted "start - end, start - end" list. Boundaries are clamped
+  // to the video when its duration is known; otherwise taken as-is (the <video> loads fast).
+  const addPastedRanges = () => {
+    const ranges = parseRanges(pasteText);
+    if (!ranges.length) return;
+    const created = ranges.map((r) => {
+      const start = clamp(r.start, 0, dur > 0 ? Math.max(0, dur - MIN_CLIP) : r.start);
+      const end = dur > 0 ? clamp(r.end, start + MIN_CLIP, dur) : Math.max(r.end, start + MIN_CLIP);
+      return newClip(start, end);
+    });
+    setClips((cs) => [...cs, ...created].sort((a, b) => a.start - b.start));
+    setSelectedId(created[0].id);
+    setPasteText("");
+  };
 
   // Build the caption override for a clip: off, edited (zip words with token
   // timings by index), or omitted (server auto-fills from the transcript window).
@@ -285,6 +319,7 @@ export default function ClipEditor({
   };
 
   const ready = clips.filter((c) => c.end - c.start >= MIN_CLIP);
+  const pasteCount = parseRanges(pasteText).length;
   const submit = () =>
     onRender(
       [...ready]
@@ -423,6 +458,25 @@ export default function ClipEditor({
         <span className="muted" style={{ fontSize: 12 }}>
           Drag the track to create · drag a clip to move · drag an edge to trim
         </span>
+      </div>
+
+      <div className="row" style={{ margin: "0 0 12px", alignItems: "center", gap: 8 }}>
+        <input
+          style={{ flex: 1, minWidth: 240 }}
+          value={pasteText}
+          onChange={(e) => setPasteText(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              addPastedRanges();
+            }
+          }}
+          placeholder="Paste ranges → 01:37 - 02:58, 04:57 - 06:32, 09:16 - 12:34"
+          title="Comma/newline separated start–end times; a clip is created for each"
+        />
+        <button className="ghost" onClick={addPastedRanges} disabled={pasteCount === 0}>
+          + Add {pasteCount || ""} clip{pasteCount === 1 ? "" : "s"} from ranges
+        </button>
       </div>
 
       <div className="timeline" ref={trackRef} onPointerDown={startCreate}>
