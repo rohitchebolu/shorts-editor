@@ -207,40 +207,6 @@ function probeDuration(input) {
   });
 }
 
-// Manual mode: transcribe only the extracted (kept) clips, not the whole source — the
-// big speedup. Each clip is transcribed clip-local (0-based), then its captions are
-// offset into the full video's timeline and clamped to the clip window, so render.mjs
-// slices them exactly like an up-front full transcript. Writes transcript_cleaned.json.
-async function transcribeClips(job, snapped, env) {
-  const combined = [];
-  for (const seg of snapped.segments) {
-    if (seg.captionsOff) continue; // captions disabled for this clip — skip transcription
-    const clip = path.join(job.tmp, "clips", `clip_${String(seg.id).padStart(2, "0")}.mp4`);
-    if (!fs.existsSync(clip)) continue;
-    const tPath = path.join(job.tmp, `clip_${String(seg.id).padStart(2, "0")}_transcript.json`);
-    const args = [clip, "--output", tPath, "--model", job.options.model];
-    if (job.options.language) args.push("--language", job.options.language);
-    if (job.options.backend && job.options.backend !== "faster-whisper")
-      args.push("--backend", job.options.backend);
-    await py(job, "transcribe.py", args, env);
-    const t = readJsonSafe(tPath);
-    const offset = Number(seg.start) * 1000;
-    const endCap = Number(seg.end) * 1000;
-    for (const c of t?.captions || []) {
-      const startMs = Math.round(c.startMs + offset);
-      const endMs = Math.min(Math.round(c.endMs + offset), endCap);
-      if (endMs > startMs) combined.push({ text: c.text, startMs, endMs });
-    }
-  }
-  writeJson(path.join(job.tmp, "transcript_cleaned.json"), { captions: combined });
-  job.transcript = {
-    language: job.options.language || "auto",
-    word_count: combined.length,
-    duration: job.transcript?.duration || 0,
-  };
-  emit(job, { type: "data", key: "transcript", value: job.transcript });
-}
-
 async function stage(job, name, fn) {
   job.stage = name;
   emit(job, { type: "stage", stage: name, status: "running" });
@@ -503,11 +469,10 @@ async function runPhase2(job, { segmentIds, segments, style, platform }) {
     }
   });
 
-  // Manual: transcribe only the extracted clips now (deferred from Phase 1).
+  // Manual: captions removed for a simpler flow — render with none. Write an empty
+  // captions file so the renderer still has its --captions input.
   if (isManual) {
-    await stage(job, "transcribe", async () => {
-      await transcribeClips(job, snapped, env);
-    });
+    writeJson(path.join(job.tmp, "transcript_cleaned.json"), { captions: [] });
   }
 
   await stage(job, "reframe", async () => {

@@ -28,9 +28,9 @@ const STAGES = [
 type Stage = (typeof STAGES)[number];
 type StageState = "pending" | "running" | "done" | "error";
 
-// Manual mode: no LLM scoring, no content detection, no boundary snapping. Transcription
-// is deferred to Phase 2 and runs on the kept clips only (after extract).
-const MANUAL_STAGES: Stage[] = ["fetch", "extract", "transcribe", "reframe", "render", "export"];
+// Manual mode: no LLM scoring, no content detection, no snapping, and (captions removed)
+// no transcription — just cut the clips and render 4:3-on-black.
+const MANUAL_STAGES: Stage[] = ["fetch", "extract", "reframe", "render", "export"];
 
 const STAGE_LABEL: Record<Stage, string> = {
   fetch: "Fetch (yt-dlp)",

@@ -186,7 +186,7 @@ async function main() {
         captionY: typeof seg.captionY === "number" ? seg.captionY : layout === "four_three" ? 0.5 : 0.8,
         hookLine1: seg.hook_line1 || "",
         hookLine2: seg.hook_line2 || "",
-        showProgressBar: true,
+        showProgressBar: false,
         durationInSeconds,
       };
 
